@@ -4,9 +4,11 @@ package dev.youcef.bank_management_system.bank;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 // account imports
 import dev.youcef.bank_management_system.account.Account;
+import dev.youcef.bank_management_system.account.AccountService;
 import dev.youcef.bank_management_system.account.AccountStatus;
 import dev.youcef.bank_management_system.account.AccountType;
 // customer imports
@@ -24,11 +26,19 @@ public class Bank {
     private final List<Account> accounts = new ArrayList<>();
     private final List<Transaction> transactions = new ArrayList<>();
 
+    private final AccountService service = new AccountService();
+    private final Scanner scanner = new Scanner(System.in);
+
     public Bank() {
         loadSampleData();
     }
 
-    // Statements must live inside a method or constructor, not directly in the class body
+
+    public static void main(String[] args) {
+        new Bank().run();
+    }
+
+    //sample data
     private void loadSampleData() {
 
         // 1. Create customers
@@ -48,9 +58,18 @@ public class Bank {
         youcef.setPhone("0660123456");
         youcef.setCustomerType(CustomerType.INDIVIDUAL);
 
+        Customer amine = new Customer();
+        amine.setId(3L);
+        amine.setFirstName("Amine");
+        amine.setLastName("kerada");
+        amine.setEmail("amine@gmail.com");
+        amine.setPhone("055404393");
+        amine.setCustomerType(CustomerType.INDIVIDUAL);
+
         // 2. Add customers to the list
         customers.add(nehal);
         customers.add(youcef);
+        customers.add(amine);
 
         // 3. Create accounts
         Account account1 = new Account();
@@ -83,6 +102,108 @@ public class Bank {
         accounts.add(account3);
     }
 
+    // ===================== MENU =====================
+    public void run() {
+        boolean running = true;
+
+        while (running) {
+            printMenu();
+            String choice = scanner.nextLine().trim();
+
+            try {
+                switch (choice) {
+                    case "1" -> displayData();
+                    case "2" -> withdraw();
+                    case "3" -> deposit();
+                    case "4" -> transfer();
+                    case "0" -> running = false;
+                    default -> System.out.println("Invalid choice, try again.");
+                }
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                System.out.println("Error: " + e.getMessage());
+            }
+        }
+
+        System.out.println("Goodbye!");
+    }
+
+    private void printMenu() {
+        System.out.println("\n===== BANK MENU =====");
+        System.out.println("1. Display all data");
+        System.out.println("2. Withdraw");
+        System.out.println("3. Deposit");
+        System.out.println("4. Transfer");
+        System.out.println("0. Exit");
+        System.out.print("Choose: ");
+    }
+
+    // ===================== OPERATIONS =====================
+    private void deposit() {
+        Account account = readAccount("Account number: ");
+        BigDecimal amount = readAmount();
+
+        service.deposit(account, amount);
+
+        System.out.println("Deposit successful.");
+        printAccount(account);
+    }
+
+    private void withdraw() {
+        Account account = readAccount("Account number: ");
+        BigDecimal amount = readAmount();
+
+        service.withdraw(account, amount);
+
+        System.out.println("Withdraw successful.");
+        printAccount(account);
+    }
+
+    private void transfer() {
+        Account from = readAccount("From account number: ");
+        Account to = readAccount("To account number: ");
+        BigDecimal amount = readAmount();
+
+        service.transfer(from, to, amount);
+
+        System.out.println("Transfer successful.");
+        printAccount(from);
+        printAccount(to);
+    }
+
+    // ===================== INPUT HELPERS =====================
+    private Account readAccount(String message) {
+        System.out.print(message);
+        String number = scanner.nextLine().trim();
+
+        Account account = service.findByAccountNumber(accounts, number);
+        if (account == null) {
+            throw new IllegalArgumentException("Account not found: " + number);
+        }
+        return account;
+    }
+
+    private BigDecimal readAmount() {
+        System.out.print("Amount: ");
+        String text = scanner.nextLine().trim();
+
+        try {
+            return new BigDecimal(text);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid amount: " + text);
+        }
+    }
+
+    // ===================== DISPLAY =====================
+    private void printAccount(Account account) {
+        System.out.println("--------------------------");
+        System.out.println("Account: " + account.getAccountNumber());
+        System.out.println("Owner:   " + account.getCustomer().getFirstName()
+                + " " + account.getCustomer().getLastName());
+        System.out.println("Balance: " + account.getBalance().getAmount()
+                + " " + account.getBalance().getCurrency());
+        System.out.println("--------------------------");
+    }
+
     // Display all information
     public void displayData() {
 
@@ -108,7 +229,7 @@ public class Bank {
         }
     }
 
-    // Getters
+    // getters 
     public List<Customer> getCustomers() {
         return customers;
     }
