@@ -4,6 +4,7 @@ package dev.youcef.bank_management_system.bank;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Scanner;
 
 // account imports
@@ -34,9 +35,7 @@ public class Bank {
     }
 
 
-    public static void main(String[] args) {
-        new Bank().run();
-    }
+   
 
     //sample data
     private void loadSampleData() {
@@ -205,29 +204,35 @@ public class Bank {
     }
 
     // Display all information
-    public void displayData() {
+public void displayData() {
 
-        System.out.println("\n========== BANK CUSTOMERS ==========");
+    System.out.println("\n========== BANK CUSTOMERS AND ACCOUNTS ==========");
 
-        for (Customer customer : customers) {
-            System.out.println("\nCustomer ID: " + customer.getId());
-            System.out.println("Name: " + customer.getFirstName() + " " + customer.getLastName());
-            System.out.println("Email: " + customer.getEmail());
-            System.out.println("Phone: " + customer.getPhone());
-        }
+    for (Customer customer : customers) {
+        System.out.println("\n----------------------------------------");
+        System.out.println("Customer ID: " + customer.getId());
+        System.out.println("Name: " + customer.getFirstName() + " " + customer.getLastName());
+        System.out.println("Email: " + customer.getEmail());
+        System.out.println("Phone: " + customer.getPhone());
 
-        System.out.println("\n========== BANK ACCOUNTS ==========");
+        boolean hasAccount = false;
 
         for (Account account : accounts) {
-            System.out.println("\nAccount Number: " + account.getAccountNumber());
-            System.out.println("Owner: " + account.getCustomer().getFirstName()
-                    + " " + account.getCustomer().getLastName());
-            System.out.println("Type: " + account.getAccountType());
-            System.out.println("Status: " + account.getStatus());
-            System.out.println("Balance: " + account.getBalance().getAmount()
-                    + " " + account.getBalance().getCurrency());
+            if (Objects.equals(account.getCustomer().getId(), customer.getId())) {
+                hasAccount = true;
+                System.out.println("\n   Account Number: " + account.getAccountNumber());
+                System.out.println("   Type: " + account.getAccountType());
+                System.out.println("   Status: " + account.getStatus());
+                System.out.println("   Balance: " + account.getBalance().getAmount()
+                        + " " + account.getBalance().getCurrency());
+            }
+        }
+
+        if (!hasAccount) {
+            System.out.println("\n   (No accounts)");
         }
     }
+}
 
     // getters 
     public List<Customer> getCustomers() {

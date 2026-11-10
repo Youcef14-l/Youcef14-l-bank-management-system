@@ -18,8 +18,7 @@ public class AccountService {
 
     // deposit
     public void deposit(Account account, BigDecimal amount) {
-        checkAmount(amount);
-        checkActive(account);
+
 
         Money balance = account.getBalance();
         balance.setAmount(balance.getAmount().add(amount));
@@ -27,8 +26,6 @@ public class AccountService {
 
     // ---------- WITHDRAW ----------
     public void withdraw(Account account, BigDecimal amount) {
-        checkAmount(amount);
-        checkActive(account);
 
         Money balance = account.getBalance();
         if (balance.getAmount().compareTo(amount) < 0) {
@@ -45,25 +42,14 @@ public class AccountService {
         if (from.getBalance().getCurrency() != to.getBalance().getCurrency()) {
             throw new IllegalArgumentException("Accounts must have the same currency");
         }
-        checkActive(to); // check the receiver BEFORE taking money from the sender
+
 
         withdraw(from, amount); // validates amount, status, and funds for the sender
         deposit(to, amount);
     }
 
     // ---------- helpers ----------
-    private void checkAmount(BigDecimal amount) {
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Amount must be greater than zero");
-        }
-    }
 
-    private void checkActive(Account account) {
-        if (account == null) {
-            throw new IllegalArgumentException("Account not found");
-        }
-        if (account.getStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalStateException("Account is not active");
-        }
-    }
+
+
 }

@@ -15,9 +15,9 @@ public class Account {
     private AccountStatus status;
     private Currency currency;
     private Customer customer;
-    private LocalDateTime createdAt; 
-    public Account(){ 
-    }
+    private LocalDateTime createdAt;   
+
+    public Account(){}
     //constructor 
     public Account(long id, String accountNumber, Money balance, AccountType accountType, AccountStatus status,
         Currency currency, Customer customer, LocalDateTime createdAt) { 
