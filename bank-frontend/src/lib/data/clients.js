@@ -1,0 +1,38 @@
+export const clients = [
+  {
+    id: 'CLI-0001',
+    nom: 'Benali',
+    prenom: 'Amine',
+    email: 'amine.benali@example.dz',
+    telephone: '+213 555 01 02 03',
+    adresse: '12, rue Didouche Mourad, Alger',
+    created: '12/03/2024',
+  },
+  {
+    id: 'CLI-0002',
+    nom: 'Haddad',
+    prenom: 'Sara',
+    email: 'sara.haddad@example.dz',
+    telephone: '+213 555 04 05 06',
+    adresse: '8, avenue de l’Indépendance, Oran',
+    created: '04/06/2024',
+  },
+  {
+    id: 'CLI-0003',
+    nom: 'Merabet',
+    prenom: 'Yacine',
+    email: 'yacine.merabet@example.dz',
+    telephone: '+213 555 07 08 09',
+    adresse: '25, boulevard Emir Abdelkader, Constantine',
+    created: '19/08/2024',
+  },
+  ...['Nadia Bensaïd', 'Karim Toumi', 'Lina Ferhat', 'Samir Kaci', 'Maya Belkacem'].map((name, index) => ({
+    id: `CLI-${String(index + 4).padStart(4, '0')}`,
+    prenom: name.split(' ')[0],
+    nom: name.split(' ').slice(1).join(' '),
+    email: `contact${index + 4}@example.dz`,
+    telephone: `+213 555 10 2${index} 30`,
+    adresse: 'Alger, Algérie',
+    created: '12/09/2024',
+  })),
+]

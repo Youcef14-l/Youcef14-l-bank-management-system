@@ -1,0 +1,4 @@
+export function formatMontant(centimes){return new Intl.NumberFormat('fr-DZ',{minimumFractionDigits:2,maximumFractionDigits:2}).format(centimes/100)+' DA'}
+export function formatDate(value){return new Intl.DateTimeFormat('fr-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(value instanceof Date?value:new Date(value))}
+export function formatDateTime(value){return new Intl.DateTimeFormat('fr-DZ',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(value instanceof Date?value:new Date(value))}
+export function parseMontantToCentimes(value){const match=String(value).trim().replace(/\s/g,'').replace(',','.').match(/^(\d+)(?:\.(\d{1,2}))?$/);if(!match)return null;const whole=BigInt(match[1]),fraction=BigInt((match[2]||'').padEnd(2,'0'));const cents=whole*100n+fraction;return cents<=BigInt(Number.MAX_SAFE_INTEGER)?Number(cents):null}
