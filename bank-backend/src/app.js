@@ -1,21 +1,40 @@
-const express = require("express");
-const cors = require("cors");
+
+import express from "express";
+import cors from "cors";
+
+import { env } from "./config/env.js";
+
+import authRoutes from "./modules/auth/auth.routes.js";
+
+import {
+  notFoundHandler,
+  errorHandler,
+} from "./middlewares/errorHandler.js";
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+// 1. CORS configuration
+app.use(
+  cors({
+    origin: env.CORS_ORIGIN,
+  })
+);
 
-// Test backend
+// 2. Parse JSON requests
+app.use(express.json({ limit: "1mb" }));
+
+// 3. Health check
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
     message: "BankServices API is running",
   });
 });
-const prisma = require("./config/prisma");
 
-app.get("/api/health/db", async (req, res) => {
+// 4. Database health check
+import { prisma } from "./config/prisma.js";
+
+app.get("/api/health/db", async (req, res, next) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
 
@@ -24,12 +43,17 @@ app.get("/api/health/db", async (req, res) => {
       message: "Database connected successfully!",
     });
   } catch (error) {
-    console.error("Database error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Database connection failed",
-    });
+    next(error);
   }
 });
-module.exports = app;
+
+// 5. Authentication routes
+app.use("/api/auth", authRoutes);
+
+// 6. Handle unknown routes
+app.use(notFoundHandler);
+
+// 7. Central error handler (always last)
+app.use(errorHandler);
+
+export default app;

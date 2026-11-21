@@ -1,9 +1,280 @@
+// ============================================================================
+// BankServices - Prisma v6 schema (PostgreSQL / Supabase)
+// File location: <bank-backend>/prisma/schema.prisma
+// ============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  url       = env("DATABASE_URL") // pooled connection (Supabase pooler, port 6543)
+  directUrl = env("DIRECT_URL") // direct connection (used by prisma migrate)
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum CustomerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum AccountType {
+  COURANT
+  EPARGNE
+}
+
+enum AccountStatus {
+  ACTIF
+  BLOQUE
+  FERME
+}
+
+enum TransactionType {
+  DEPOT
+  RETRAIT
+  VIREMENT
+}
+
+enum TransactionStatus {
+  PENDING // waiting for director approval - NO balance change yet
+  APPROVED // transient state: approved, being executed
+  REJECTED // rejected by the director - no balance change
+  COMPLETED // executed, balances updated
+  FAILED // execution failed (e.g. insufficient funds at approval time)
+}
+
+// ============================================================================
+// BANK  (Banque)
+// ============================================================================
+
+model Bank {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  code      String   @unique
+  address   String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers Customer[]
+  employees Employee[]
+  accounts  Account[]
+
+  @@map("banks")
+}
+
+// ============================================================================
+// CUSTOMER  (Client)
+// ============================================================================
+
+model Customer {
+  id           String       @id @default(uuid()) @db.Uuid
+  firstName    String
+  lastName     String
+  email        String?      @unique // NULLs are allowed multiple times in PostgreSQL
+  phone        String?
+  address      String?
+  nationalId   String       @unique
+  dateOfBirth  DateTime?    @db.Date
+  customerType CustomerType @default(INDIVIDUAL)
+  isActive     Boolean      @default(true) // soft delete / deactivation
+  bankId       String       @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  bank     Bank      @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  accounts Account[]
+
+  @@index([bankId])
+  @@index([lastName, firstName])
+  @@map("customers")
+}
+
+// ============================================================================
+// ACCOUNT  (CompteBancaire / CompteCourant / CompteEpargne)
+// One single table + accountType enum (single-table inheritance).
+// Subclass-specific attributes are nullable columns:
+//   - COURANT : overdraftLimit      (decouvertAutorise)
+//   - EPARGNE : interestRate, minimumBalance (tauxInteret, soldeMinimum)
+// ============================================================================
+
+model Account {
+  id            String        @id @default(uuid()) @db.Uuid
+  accountNumber String        @unique
+  balance       Decimal       @default(0) @db.Decimal(19, 2)
+  accountType   AccountType
+  status        AccountStatus @default(ACTIF)
+  currency      String        @default("DZD") @db.VarChar(3)
+
+  // COURANT only
+  overdraftLimit Decimal? @db.Decimal(19, 2)
+  // EPARGNE only
+  interestRate   Decimal? @db.Decimal(7, 4)
+  minimumBalance Decimal? @db.Decimal(19, 2)
+
+  customerId String    @db.Uuid
+  bankId     String    @db.Uuid
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  closedAt   DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  bank     Bank     @relation(fields: [bankId], references: [id], onDelete: Restrict)
+
+  outgoingTransactions Transaction[] @relation("TransactionSource")
+  incomingTransactions Transaction[] @relation("TransactionDestination")
+
+  @@index([customerId])
+  @@index([status])
+  @@index([bankId])
+  @@map("accounts")
+}
+
+// ============================================================================
+// TRANSACTION
+// DEPOT     -> destinationAccountId only
+// RETRAIT   -> sourceAccountId only
+// VIREMENT  -> both (ONE single row for the whole transfer)
+// Rows are never deleted or updated after reaching a final status
+// (enforced by DB triggers added in the migration step).
+// ============================================================================
+
+model Transaction {
+  id              String            @id @default(uuid()) @db.Uuid
+  reference       String            @unique
+  transactionType TransactionType
+  amount          Decimal           @db.Decimal(19, 2)
+  fee             Decimal           @default(0) @db.Decimal(19, 2) // frais (class diagram)
+  description     String?
+  status          TransactionStatus @default(PENDING)
+
+  sourceAccountId      String? @db.Uuid
+  destinationAccountId String? @db.Uuid
+
+  initiatedById   String    @db.Uuid
+  approvedById    String?   @db.Uuid
+  approvedAt      DateTime?
+  rejectionReason String?
+  completedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sourceAccount      Account?  @relation("TransactionSource", fields: [sourceAccountId], references: [id], onDelete: Restrict)
+  destinationAccount Account?  @relation("TransactionDestination", fields: [destinationAccountId], references: [id], onDelete: Restrict)
+  initiatedBy        Employee  @relation("TransactionInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
+  approvedBy         Employee? @relation("TransactionApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([sourceAccountId])
+  @@index([destinationAccountId])
+  @@index([initiatedById])
+  @@index([approvedById])
+  @@map("transactions")
+}
+
+// ============================================================================
+// EMPLOYEE
+// ============================================================================
+
+model Employee {
+  id             String    @id @default(uuid()) @db.Uuid
+  firstName      String
+  lastName       String
+  email          String    @unique
+  password       String // bcrypt hash ONLY - never returned by the API
+  phone          String?
+  employeeNumber String    @unique
+  roleId         String    @db.Uuid
+  bankId         String    @db.Uuid
+  isActive       Boolean   @default(true) // deactivation instead of deletion
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastLoginAt    DateTime?
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  bank Bank @relation(fields: [bankId], references: [id], onDelete: Restrict)
+
+  initiatedTransactions Transaction[] @relation("TransactionInitiator")
+  approvedTransactions  Transaction[] @relation("TransactionApprover")
+  auditLogs             AuditLog[]
+
+  @@index([roleId])
+  @@index([bankId])
+  @@map("employees")
+}
+
+// ============================================================================
+// ROLE / PERMISSION / ROLE_PERMISSION  (RBAC)
+// ============================================================================
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique // CAISSIER, CHARGE_CLIENTELE, DIRECTEUR_AGENCE, CONTROLEUR, ADMINISTRATEUR
+  description String?
+  isSystem    Boolean  @default(false) // the 5 base roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employees   Employee[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique // e.g. CUSTOMERS_CREATE
+  module      String // e.g. CUSTOMERS (for grouping in the admin UI)
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @db.Uuid
+  permissionId String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================================================
+// AUDIT LOG  (append-only)
+// ============================================================================
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  employeeId  String?  @db.Uuid // NULL = system event
+  action      String // e.g. ACCOUNT_BLOCKED, TRANSACTION_APPROVED
+  entityType  String // e.g. Account, Transaction, Employee
+  entityId    String // id of the affected row
+  description String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
