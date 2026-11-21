@@ -79,3 +79,26 @@ export const ROLE_PERMISSIONS = Object.freeze({
     P.ROLES_MANAGE, P.PERMISSIONS_MANAGE,
   ],
 });
+
+// ---------------------------------------------------------------------------------------------
+// Separation-of-duties rules, enforced when the permissions of a role are edited (role.rules.js)
+// ---------------------------------------------------------------------------------------------
+export const FINANCIAL_PERMISSIONS = Object.freeze([
+  P.DEPOSITS_CREATE,
+  P.WITHDRAWALS_CREATE,
+  P.TRANSFERS_CREATE,
+  P.TRANSACTIONS_APPROVE,
+  P.TRANSACTIONS_REJECT,
+]);
+
+export const ROLE_PERMISSION_RULES = Object.freeze({
+  // The admin manages people and access, never money; and must keep what lets him administrate.
+  [ROLES.ADMINISTRATEUR]: {
+    forbidden: FINANCIAL_PERMISSIONS,
+    required: [P.ROLES_MANAGE, P.PERMISSIONS_MANAGE, P.EMPLOYEES_VIEW],
+  },
+  // The controller is read-only: only *_VIEW permissions.
+  [ROLES.CONTROLEUR]: { viewOnly: true },
+  // A cashier can never approve operations (the director does).
+  [ROLES.CAISSIER]: { forbidden: [P.TRANSACTIONS_APPROVE, P.TRANSACTIONS_REJECT] },
+});

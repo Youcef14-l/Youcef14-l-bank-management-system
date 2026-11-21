@@ -4,7 +4,12 @@ import cors from "cors";
 
 import { env } from "./config/env.js";
 
-import authRoutes from "./modules/auth/auth.routes.js";
+import authRoutes from "./modules/auth/auth.routes.js"; 
+import employeeRoutes from "./modules/employees/employee.routes.js";
+import roleRoutes from "./modules/roles/role.routes.js";
+import permissionRoutes from "./modules/permissions/permission.routes.js"; 
+import customerRoutes from "./modules/customers/customer.routes.js";
+
 
 import {
   notFoundHandler,
@@ -48,7 +53,13 @@ app.get("/api/health/db", async (req, res, next) => {
 });
 
 // 5. Authentication routes
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authRoutes); 
+
+app.use("/api/employees", employeeRoutes);
+app.use("/api/roles", roleRoutes);
+app.use("/api/permissions", permissionRoutes); 
+
+app.use("/api/customers", customerRoutes);
 
 // 6. Handle unknown routes
 app.use(notFoundHandler);
