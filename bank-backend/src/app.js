@@ -8,7 +8,8 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import employeeRoutes from "./modules/employees/employee.routes.js";
 import roleRoutes from "./modules/roles/role.routes.js";
 import permissionRoutes from "./modules/permissions/permission.routes.js"; 
-import customerRoutes from "./modules/customers/customer.routes.js";
+import customerRoutes from "./modules/customers/customer.routes.js"; 
+import transactionRoutes from "./modules/transactions/transaction.routes.js";
 
 import accountRoutes, {
   customerAccountsRoutes
@@ -69,7 +70,8 @@ app.use(
   customerAccountsRoutes
 );
 
-app.use("/api/accounts", accountRoutes);
+app.use("/api/accounts", accountRoutes); 
+app.use("/api/transactions", transactionRoutes);
 
 // 6. Handle unknown routes
 app.use(notFoundHandler);
