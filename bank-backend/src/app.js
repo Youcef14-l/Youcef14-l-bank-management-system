@@ -10,6 +10,9 @@ import roleRoutes from "./modules/roles/role.routes.js";
 import permissionRoutes from "./modules/permissions/permission.routes.js"; 
 import customerRoutes from "./modules/customers/customer.routes.js";
 
+import accountRoutes, {
+  customerAccountsRoutes
+} from "./modules/accounts/account.routes.js"; 
 
 import {
   notFoundHandler,
@@ -59,7 +62,14 @@ app.use("/api/employees", employeeRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/permissions", permissionRoutes); 
 
-app.use("/api/customers", customerRoutes);
+app.use("/api/customers", customerRoutes);   
+
+app.use(
+  "/api/customers/:customerId/accounts",
+  customerAccountsRoutes
+);
+
+app.use("/api/accounts", accountRoutes);
 
 // 6. Handle unknown routes
 app.use(notFoundHandler);
