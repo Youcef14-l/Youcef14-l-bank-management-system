@@ -52,7 +52,7 @@ export async function login(identifier, password) {
 
   const email = value.includes('@')
     ? value
-    : `${value}@bankservices.local`
+    : `${value}@bankservices.dz`
 
   const { data } = await apiFetch('/auth/login', {
     method: 'POST',
