@@ -15,7 +15,9 @@ import StatsPage from './pages/StatsPage.jsx'
 import ClientDetail from './pages/ClientDetailPage.jsx'
 import AccountDetail from './pages/AccountDetailPage.jsx'
 import NewRecord from './pages/NewRecordPage.jsx'
-import NotFound from './pages/NotFoundPage.jsx'
+import NotFound from './pages/NotFoundPage.jsx' 
+
+import { restoreSession, logout } from './lib/auth.js'
 
 const navigationByRole = {
   caissier: [['/operations/new', 'Nouvelle opération', Plus], ['/operations', 'Historique', ArrowLeftRight]],
@@ -40,17 +42,42 @@ const pageTitle = (path, selectedClient, selectedAccount) => {
   return 'Page introuvable'
 }
 
+
 export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+
   const path = location.pathname
+
+  // حالة الموظف الذي سجل الدخول
   const [session, setSession] = useState(null)
+
+  // منع عرض صفحة Login قبل التحقق من الجلسة
+  const [booting, setBooting] = useState(true)
+
+  // استعادة الجلسة عند فتح التطبيق أو تحديث الصفحة
+  useEffect(() => {
+    restoreSession()
+      .then((user) => setSession(user))
+      .finally(() => setBooting(false))
+  }, [])
+
+  // تسجيل الخروج
+  const handleLogout = () => {
+    logout()
+    setSession(null)
+    navigate('/login', { replace: true })
+  }
+
   const [query, setQuery] = useState('')
   const [mobile, setMobile] = useState(false)
   const [dark, setDark] = useState(false)
   const [accountFilter, setAccountFilter] = useState('Tous')
   const [sort, setSort] = useState('Récent')
+
+  // بقية الكود يبقى كما هو
+
 
   useEffect(() => { document.documentElement.classList.toggle('dark', dark) }, [dark])
   useEffect(() => {
@@ -58,7 +85,14 @@ export default function App() {
     if (session && path === '/login') navigate(session.role.landing, { replace: true })
     if (session && !canAccessPath(session.roleId, path)) navigate(session.role.landing, { replace: true })
   }, [navigate, path, session])
+useEffect(() => {
+  if (booting) return
+  if (!session && path !== '/login') navigate('/login', { replace: true })
+  if (session && path === '/login') navigate(session.role.landing, { replace: true })
+  if (session && !canAccessPath(session.roleId, path)) navigate(session.role.landing, { replace: true })
+}, [booting, navigate, path, session])
 
+if (booting) return null
   if (!session || path === '/login') {
     return <LoginPage onLogin={(user) => { setSession(user); navigate(user.role.landing, { replace: true }) }} />
   }
@@ -97,7 +131,7 @@ export default function App() {
       {session.roleId === 'caissier' && <button className="new-op" onClick={() => navigate('/operations/new')}><Plus size={17} /><span>Nouvelle opération</span></button>}
       <div className="nav-label">{session.role.label.toUpperCase()}</div>
       <nav>{roleNavigation.map(([href, label, Icon]) => <Link key={href} to={href} onClick={() => setMobile(false)} className={`nav-link ${path === href ? 'active' : ''}`}><Icon size={18} /><span>{label}</span>{href === '/operations' && <span className="nav-count">{operations.length}</span>}</Link>)}</nav>
-      <div className="sidebar-bottom"><div className="help-box"><div className="help-icon"><FileText size={17} /></div><div><b>Mode démonstration</b><span>Accès selon votre rôle</span></div><ArrowRight size={15} /></div><div className="profile"><div className="avatar">{session.name.slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{session.name}</b><span>{session.role.label}</span></div><button className="icon-button" aria-label="Paramètres"><Settings size={18} /></button></div><button className="logout-button" onClick={() => { setSession(null); navigate('/login', { replace: true }) }}><LogOut size={15} /> Déconnexion</button><button className="theme-toggle" onClick={() => setDark(!dark)}>{dark ? 'Mode clair' : 'Mode sombre'} <span>{dark ? '☼' : '◐'}</span></button></div>
+      <div className="sidebar-bottom"><div className="help-box"><div className="help-icon"><FileText size={17} /></div><div><b>Mode démonstration</b><span>Accès selon votre rôle</span></div><ArrowRight size={15} /></div><div className="profile"><div className="avatar">{session.name.slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{session.name}</b><span>{session.role.label}</span></div><button className="icon-button" aria-label="Paramètres"><Settings size={18} /></button></div><button className="logout-button" onClick={handleLogout}><LogOut size={15} /> Déconnexion</button><button className="theme-toggle" onClick={() => setDark(!dark)}>{dark ? 'Mode clair' : 'Mode sombre'} <span>{dark ? '☼' : '◐'}</span></button></div>
     </aside>
     <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={() => setMobile(true)} aria-label="Ouvrir le menu"><Menu /></button><div className="crumb"><span>Agence Alger Centre</span><ChevronRight size={14} /><strong>{title}</strong></div><div className="top-actions">{session.roleId !== 'administrateur' && <label className="global-search"><Search size={16} /><input aria-label="Rechercher" placeholder="Rechercher…" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>⌘ K</kbd></label>}<button className="icon-button notification" aria-label="Notifications"><Bell size={19} /><i /></button><div className="top-avatar">{session.name.slice(0, 2).toUpperCase()}</div></div></header><div className="content">{content}</div></main>
   </div>

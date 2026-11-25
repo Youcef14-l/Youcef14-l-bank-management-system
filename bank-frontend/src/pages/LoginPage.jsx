@@ -1,20 +1,32 @@
 import { useState } from 'react'
 import { ArrowRight, Landmark, LockKeyhole, Mail } from 'lucide-react'
-import { authenticate, roleOptions } from '../lib/auth.js'
+import { login, roleOptions } from '../lib/auth.js' 
+
 
 export default function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const submit = (event) => {
+ const submit = async (event) => {
     event.preventDefault()
-    const user = authenticate(email, password)
-    if (!user) {
-      setError('Identifiants incorrects. Utilisez le code de démonstration du rôle choisi.')
-      return
+    if (loading) return
+    setError('')
+    setLoading(true)
+    try {
+      onLogin(await login(email, password))
+    } catch (err) {
+      const messages = {
+        INVALID_CREDENTIALS: 'Identifiants incorrects.',
+        ACCOUNT_DISABLED: 'Ce compte est désactivé.',
+        TOO_MANY_ATTEMPTS: 'Trop de tentatives. Réessayez dans quelques minutes.',
+        NETWORK_ERROR: 'Serveur injoignable. Vérifiez que le back-end est démarré.',
+      }
+      setError(messages[err.code] ?? err.message ?? 'Erreur de connexion.')
+    } finally {
+      setLoading(false)
     }
-    onLogin(user)
   }
 
   return (
