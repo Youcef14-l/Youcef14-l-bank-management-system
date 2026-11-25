@@ -1,8 +1,70 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight } from 'lucide-react'
-import { clients, operations, formatMontant, clientFor } from '../lib/mock.js'
-import { toast } from 'sonner'
-import { PageHeader, Badge, Button, OperationsTable, Empty } from '../components/ui.jsx'
+import { PageHeader, Badge, Button, Empty } from '../components/ui.jsx'
+import { formatDate, formatDateTime } from '../lib/format.js'
+import { accountStatusLabel, accountTypeLabel, getAccount } from '../lib/accountApi.js'
+import { customerFullName } from '../lib/customerApi.js'
+import { formatAvailable, formatMoney } from '../lib/money.js'
+import { getErrorMessage } from '../lib/apiErrors.js'
+import { useApiResource } from '../lib/hooks.js'
 
-export default function AccountDetail({account,navigate}){const[,refresh]=useState(0),c=clientFor(account.clientId),rows=operations.filter(o=>o.account===account.numero),available=account.balance+(account.type==='COURANT'?account.overdraft:-(account.minimum||0));const toggleStatus=()=>{if(account.status==='FERME'){toast.error('Un compte fermé ne peut pas être réactivé.');return}account.status=account.status==='ACTIF'?'BLOQUE':'ACTIF';refresh(value=>value+1);toast.success(account.status==='ACTIF'?'Compte réactivé.':'Compte bloqué : les opérations sont suspendues.')};return <><PageHeader title={account.numero} description={<>{account.type==='COURANT'?'Compte courant':'Compte épargne'} · Titulaire <Link className="text-link" to={`/clients/${c.id}`}>{c.prenom} {c.nom}</Link></>} action={<><Button variant="outline" onClick={()=>navigate(`/operations/new?type=DEPOT&compte=${account.numero}`)} disabled={account.status!=='ACTIF'}><ArrowDownLeft/> Déposer</Button><Button variant="outline" onClick={()=>navigate(`/operations/new?type=RETRAIT&compte=${account.numero}`)} disabled={account.status!=='ACTIF'}><ArrowUpRight/> Retirer</Button><Button onClick={()=>navigate(`/operations/new?type=VIREMENT&compte=${account.numero}`)} disabled={account.status!=='ACTIF'}><ArrowLeftRight/> Virement</Button><Button variant="outline" onClick={toggleStatus} disabled={account.status==='FERME'}>{account.status==='ACTIF'?'Bloquer le compte':'Réactiver le compte'}</Button></>}/><section className="card balance-detail"><div><span>Solde du compte</span><strong>{formatMontant(account.balance)}</strong><small>Solde disponible · {formatMontant(available)}</small>{account.type==='EPARGNE'&&<small>Taux annuel {account.rate||2.5}% · Solde minimum {formatMontant(account.minimum||0)}</small>}</div><Badge type={account.status.toLowerCase()}>{account.status==='ACTIF'?'Actif':account.status==='BLOQUE'?'Bloqué':'Fermé'}</Badge></section><section className="card recent-card"><div className="card-heading"><div><h2>Historique des opérations</h2><p>{rows.length} opérations sur ce compte</p></div></div>{rows.length?<OperationsTable data={rows}/>:<Empty title="Aucune opération" text="Les mouvements de ce compte apparaîtront ici."/>}</section></>}
+export default function AccountDetail({ id, navigate }) {
+  const { data: account, error, loading, reload } = useApiResource(() => getAccount(id), [id])
+
+  if (error) {
+    return <>
+      <PageHeader title="Détail du compte" description="" />
+      <div className="inline-error" role="alert">
+        {getErrorMessage(error)}{' '}
+        <Button variant="outline" onClick={reload}>Réessayer</Button>{' '}
+        <Button variant="outline" onClick={() => navigate('/comptes')}>Retour aux comptes</Button>
+      </div>
+    </>
+  }
+
+  if (loading && !account) {
+    return <>
+      <PageHeader title="Détail du compte" description="Chargement…" />
+      <Empty title="Chargement…" text="Récupération du compte." />
+    </>
+  }
+
+  if (!account) return null
+
+  const holder = account.customer
+  const isSavings = account.accountType === 'EPARGNE'
+
+  return <>
+    <PageHeader
+      title={account.accountNumber}
+      description={<>{accountTypeLabel(account.accountType)} · Titulaire {holder
+        ? <Link className="text-link" to={`/clients/${holder.id}`}>{customerFullName(holder)}</Link>
+        : '—'}</>}
+    />
+
+    <section className="card balance-detail">
+      <div>
+        <span>Solde du compte</span>
+        <strong>{formatMoney(account.balance, account.currency)}</strong>
+        <small>Solde disponible · {formatAvailable(account)}</small>
+        {isSavings
+          ? <small>Taux annuel {String(Number(account.interestRate))} % · Solde minimum {formatMoney(account.minimumBalance, account.currency)}</small>
+          : <small>Découvert autorisé · {formatMoney(account.overdraftLimit, account.currency)}</small>}
+      </div>
+      <Badge type={account.status.toLowerCase()}>{accountStatusLabel(account.status)}</Badge>
+    </section>
+
+    <section className="card detail-card">
+      <h2>Informations du compte</h2>
+      <dl>
+        <dt>Numéro de compte</dt><dd className="mono">{account.accountNumber}</dd>
+        <dt>Type</dt><dd>{accountTypeLabel(account.accountType)}</dd>
+        <dt>Devise</dt><dd>{account.currency}</dd>
+        <dt>Titulaire</dt><dd>{holder ? customerFullName(holder) : '—'}</dd>
+        <dt>Ouvert le</dt><dd>{formatDate(account.createdAt)}</dd>
+        <dt>Dernière mise à jour</dt><dd>{formatDateTime(account.updatedAt)}</dd>
+        {account.closedAt && <><dt>Fermé le</dt><dd>{formatDate(account.closedAt)}</dd></>}
+      </dl>
+      <p className="fee-note">L’historique des opérations n’est pas disponible pour votre rôle.</p>
+    </section>
+  </>
+}

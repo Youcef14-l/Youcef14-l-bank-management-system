@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeftRight, ArrowRight, BarChart3, Bell, ChevronRight, FileText, LayoutDashboard, Landmark, LogOut, Menu, Plus, Search, Settings, Shield, Users, Wallet, X } from 'lucide-react'
-import { accounts, clients, operations, clientFor } from './lib/mock.js'
-import { canAccessPath } from './lib/auth.js'
+import { ArrowLeftRight, ArrowRight, BarChart3, Bell, ChevronRight, FileText, Landmark, LogOut, Menu, Plus, Search, Settings, Shield, Users, Wallet, X } from 'lucide-react'
+import { operations } from './lib/mock.js'
+import { canAccessPath, restoreSession, logout } from './lib/auth.js'
+import { hasPermission } from './lib/permissions.js'
 import LoginPage from './pages/LoginPage.jsx'
 import DirectorPage from './pages/DirectorPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
@@ -15,9 +16,7 @@ import StatsPage from './pages/StatsPage.jsx'
 import ClientDetail from './pages/ClientDetailPage.jsx'
 import AccountDetail from './pages/AccountDetailPage.jsx'
 import NewRecord from './pages/NewRecordPage.jsx'
-import NotFound from './pages/NotFoundPage.jsx' 
-
-import { restoreSession, logout } from './lib/auth.js'
+import NotFound from './pages/NotFoundPage.jsx'
 
 const navigationByRole = {
   caissier: [['/operations/new', 'Nouvelle opération', Plus], ['/operations', 'Historique', ArrowLeftRight]],
@@ -27,7 +26,34 @@ const navigationByRole = {
   administrateur: [['/admin', 'Employés & rôles', Users]],
 }
 
-const pageTitle = (path, selectedClient, selectedAccount) => {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Customer / account routes. Identifiers in the URL are backend UUIDs.
+function matchEntityRoute(path) {
+  if (path === '/clients/new') return { view: 'client-new' }
+  if (path === '/comptes/new') return { view: 'account-new' }
+
+  let match = path.match(/^\/clients\/([^/]+)\/edit$/)
+  if (match) return UUID_RE.test(match[1]) ? { view: 'client-edit', id: match[1] } : null
+
+  match = path.match(/^\/clients\/([^/]+)$/)
+  if (match) return UUID_RE.test(match[1]) ? { view: 'client-detail', id: match[1] } : null
+
+  match = path.match(/^\/comptes\/([^/]+)$/)
+  if (match) return UUID_RE.test(match[1]) ? { view: 'account-detail', id: match[1] } : null
+
+  return null
+}
+
+const entityTitles = {
+  'client-new': 'Nouveau client',
+  'client-edit': 'Modifier le client',
+  'client-detail': 'Fiche client',
+  'account-new': 'Ouvrir un compte',
+  'account-detail': 'Détail du compte',
+}
+
+const pageTitle = (path, entity) => {
   if (path === '/') return 'Tableau de bord'
   if (path === '/clients') return 'Clients'
   if (path === '/comptes') return 'Comptes bancaires'
@@ -36,12 +62,9 @@ const pageTitle = (path, selectedClient, selectedAccount) => {
   if (path === '/statistiques') return 'Statistiques'
   if (path === '/direction') return 'Pilotage de l’agence'
   if (path === '/admin') return 'Gestion des employés'
-  if (selectedClient) return path.endsWith('/edit') ? 'Modifier le client' : 'Fiche client'
-  if (selectedAccount) return 'Détail du compte'
-  if (path.includes('/new')) return path.startsWith('/clients') ? 'Nouveau client' : 'Ouvrir un compte'
+  if (entity) return entityTitles[entity.view]
   return 'Page introuvable'
 }
-
 
 export default function App() {
   const location = useLocation()
@@ -63,7 +86,6 @@ export default function App() {
       .finally(() => setBooting(false))
   }, [])
 
-  // تسجيل الخروج
   const handleLogout = () => {
     logout()
     setSession(null)
@@ -76,53 +98,50 @@ export default function App() {
   const [accountFilter, setAccountFilter] = useState('Tous')
   const [sort, setSort] = useState('Récent')
 
-  // بقية الكود يبقى كما هو
-
-
   useEffect(() => { document.documentElement.classList.toggle('dark', dark) }, [dark])
+
+  // The shared search text is cleared when the user changes section (e.g. Clients -> Comptes),
+  // so a customer-name search is never silently applied to the account-number search.
+  const section = path.split('/')[1] ?? ''
+  useEffect(() => { setQuery('') }, [section])
+
+  // Single redirect effect. It waits for the session check (booting), so a page refresh
+  // on /clients/<uuid> is no longer redirected to /login before the session is restored.
   useEffect(() => {
+    if (booting) return
     if (!session && path !== '/login') navigate('/login', { replace: true })
     if (session && path === '/login') navigate(session.role.landing, { replace: true })
     if (session && !canAccessPath(session.roleId, path)) navigate(session.role.landing, { replace: true })
-  }, [navigate, path, session])
-useEffect(() => {
-  if (booting) return
-  if (!session && path !== '/login') navigate('/login', { replace: true })
-  if (session && path === '/login') navigate(session.role.landing, { replace: true })
-  if (session && !canAccessPath(session.roleId, path)) navigate(session.role.landing, { replace: true })
-}, [booting, navigate, path, session])
+  }, [booting, navigate, path, session])
 
-if (booting) return null
+  if (booting) return null
   if (!session || path === '/login') {
     return <LoginPage onLogin={(user) => { setSession(user); navigate(user.role.landing, { replace: true }) }} />
   }
 
   if (!canAccessPath(session.roleId, path)) return null
 
-  const selectedClient = clients.find((client) => path === `/clients/${client.id}` || path === `/clients/${client.id}/edit`)
-  const selectedAccount = accounts.find((account) => path === `/comptes/${account.numero}`)
-  const title = pageTitle(path, selectedClient, selectedAccount)
-  const filteredClients = clients.filter((client) => `${client.nom} ${client.prenom} ${client.id} ${client.email}`.toLowerCase().includes(query.toLowerCase()))
-  const filteredAccounts = accounts.filter((account) => {
-    const owner = clientFor(account.clientId)
-    return `${account.numero} ${owner?.nom} ${owner?.prenom}`.toLowerCase().includes(query.toLowerCase()) && (accountFilter === 'Tous' || (accountFilter === 'Courants' ? account.type === 'COURANT' : account.type === 'EPARGNE'))
-  })
+  const can = (code) => hasPermission(session, code)
+  const entity = matchEntityRoute(path)
+  const title = pageTitle(path, entity)
   const sortedOperations = [...operations].sort((first, second) => sort === 'Récent' ? second.date - first.date : first.amount - second.amount)
   const roleNavigation = navigationByRole[session.roleId] || []
+  const preselectedClientId = UUID_RE.test(searchParams.get('client') ?? '') ? searchParams.get('client') : ''
 
   let content
   if (path === '/direction') content = <DirectorPage />
   else if (path === '/admin') content = <AdminPage />
   else if (path === '/') content = <Dashboard navigate={navigate} />
-  else if (path === '/clients') content = <ClientsPage data={filteredClients} query={query} setQuery={setQuery} navigate={navigate} />
-  else if (path === '/comptes') content = <AccountsPage data={filteredAccounts} query={query} setQuery={setQuery} filter={accountFilter} setFilter={setAccountFilter} navigate={navigate} />
+  else if (path === '/clients') content = <ClientsPage query={query} setQuery={setQuery} navigate={navigate} can={can} />
+  else if (path === '/comptes') content = <AccountsPage query={query} setQuery={setQuery} filter={accountFilter} setFilter={setAccountFilter} navigate={navigate} can={can} />
   else if (path === '/operations/new') content = <OperationPage searchParams={searchParams} setSearchParams={setSearchParams} navigate={navigate} />
   else if (path === '/operations') content = <OperationsPage data={sortedOperations} query={query} setQuery={setQuery} />
   else if (path === '/statistiques') content = <StatsPage />
-  else if (selectedClient && path.endsWith('/edit')) content = <NewRecord title={title} navigate={navigate} editClient={selectedClient} />
-  else if (selectedClient) content = <ClientDetail client={selectedClient} navigate={navigate} />
-  else if (selectedAccount) content = <AccountDetail account={selectedAccount} navigate={navigate} />
-  else if (path.includes('/new')) content = <NewRecord title={title} navigate={navigate} />
+  else if (entity?.view === 'client-new') content = <NewRecord mode="client-new" title={title} navigate={navigate} can={can} />
+  else if (entity?.view === 'client-edit') content = <NewRecord key={entity.id} mode="client-edit" title={title} clientId={entity.id} navigate={navigate} can={can} />
+  else if (entity?.view === 'client-detail') content = <ClientDetail key={entity.id} id={entity.id} navigate={navigate} can={can} />
+  else if (entity?.view === 'account-new') content = <NewRecord mode="account-new" title={title} preselectedClientId={preselectedClientId} navigate={navigate} can={can} />
+  else if (entity?.view === 'account-detail') content = <AccountDetail key={entity.id} id={entity.id} navigate={navigate} />
   else content = <NotFound navigate={navigate} />
 
   return <div className="app-shell">
