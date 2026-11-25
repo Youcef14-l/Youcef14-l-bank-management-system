@@ -44,12 +44,12 @@ export default function LoginPage({ onLogin }) {
           {error && <p className="login-error" role="alert">{error}</p>}
           <button className="login-submit" type="submit">Se connecter <ArrowRight size={16} /></button>
         </form>
-        <div className="demo-credentials">
+        {/*<div className="demo-credentials">
           <strong>Accès de démonstration</strong>
           <p>Identifiant et mot de passe identiques :</p>
           <div>{roleOptions.map((role) => <span key={role.id}>{role.label} <b>{role.id}</b></span>)}</div>
         </div>
-        <p className="login-note">Simulation locale uniquement — aucun compte réel ni donnée bancaire réelle.</p>
+        <p className="login-note">Simulation locale uniquement — aucun compte réel ni donnée bancaire réelle.</p>*/}
       </section>
     </main>
   )

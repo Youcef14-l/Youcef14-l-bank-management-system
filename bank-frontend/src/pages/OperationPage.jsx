@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Wallet, ArrowRight, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader, Button } from '../components/ui.jsx'
-import SearchableSelect from '../components/SearchableSelect.jsx'
+import AccountCombobox from '../components/AccountCombobox.jsx'
 import {
   fetchActiveAccountsPage,
   fetchAccountById,
@@ -28,7 +28,11 @@ const TYPES = [
 const VALID_TYPES = TYPES.map(([k]) => k)
 const NOUN = { DEPOT: 'Dépôt', RETRAIT: 'Retrait', VIREMENT: 'Virement' }
 const ACTION = { DEPOT: 'le dépôt', RETRAIT: 'le retrait', VIREMENT: 'le virement' }
-const QUICK_AMOUNTS = ['1000', '5000', '10000', '50000']
+const QUICK_AMOUNTS = {
+  DZD: ['1000', '5000', '10000', '50000'],
+  EUR: ['20', '50', '100', '200'],
+  USD: ['20', '50', '100', '200'],
+}
 
 const customerName = (a) =>
   `${a?.customer?.firstName ?? ''} ${a?.customer?.lastName ?? ''}`.trim() || 'Client inconnu'
@@ -57,13 +61,15 @@ export default function OperationPage({ searchParams, setSearchParams }) {
   const [accountsStatus, setAccountsStatus] = useState('loading') // loading | ready | error
   const [accountsError, setAccountsError] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
-  const [search, setSearch] = useState('') // what the user types
+  const [search, setSearch] = useState('') // what the user types (driven by the comboboxes)
   const [appliedSearch, setAppliedSearch] = useState('') // debounced value sent to the server
 
   // Latest server data for every account seen (by UUID). It is state, not a ref, so a refresh
   // that reveals a BLOQUE / FERME account immediately updates the UI and blocks submission.
   const [known, setKnown] = useState({})
   const [notice, setNotice] = useState('')
+  const [loadedOnce, setLoadedOnce] = useState(false) // first accounts request finished
+  const [baseTotal, setBaseTotal] = useState(null) // number of active accounts WITHOUT a search filter
 
   const [account, setAccount] = useState('') // UUID: account to credit / debit / transfer source
   const [dest, setDest] = useState('') // UUID: transfer destination
@@ -119,8 +125,11 @@ export default function OperationPage({ searchParams, setSearchParams }) {
         rememberAccounts(res.accounts)
         setAccounts((prev) => (append ? mergeById(prev, res.accounts) : res.accounts))
         setMeta({ page: res.page, totalPages: res.totalPages, total: res.total })
+        if (!searchTerm) setBaseTotal(res.total)
+        setLoadedOnce(true)
         setAccountsStatus('ready')
       } catch (e) {
+        setLoadedOnce(true)
         if (!aliveRef.current || requestId !== requestRef.current) return
         setAccountsError(describeApiError(e, 'Impossible de charger les comptes.'))
         setAccountsStatus(append ? 'ready' : 'error')
@@ -205,6 +214,11 @@ export default function OperationPage({ searchParams, setSearchParams }) {
 
   const active = known[account] ?? null
   const activeCurrency = active?.currency
+  const quickAmounts = QUICK_AMOUNTS[activeCurrency] ?? QUICK_AMOUNTS.DZD
+
+  const quickAmountFormatter = new Intl.NumberFormat(activeCurrency === 'EUR' ? 'fr-FR' : 'fr-DZ', {
+    maximumFractionDigits: 0,
+  })
 
   // Default / repaired destination: first other account with the same currency, else first other.
   useEffect(() => {
@@ -428,7 +442,7 @@ export default function OperationPage({ searchParams, setSearchParams }) {
     </>
   )
 
-  if (accountsStatus === 'loading' && accounts.length === 0 && !searching) {
+  if (!loadedOnce && accountsStatus === 'loading') {
     return (
       <>
         {header}
@@ -439,7 +453,7 @@ export default function OperationPage({ searchParams, setSearchParams }) {
     )
   }
 
-  if (accountsStatus === 'error' && accounts.length === 0 && !searching) {
+  if (accountsStatus === 'ready' && baseTotal === 0) {
     return (
       <>
         {header}
@@ -464,7 +478,11 @@ export default function OperationPage({ searchParams, setSearchParams }) {
 
   const accountOption = (a, withBalance) => ({
     value: a.id,
-    label: `${a.accountNumber} — ${customerName(a)}${withBalance ? ` · ${formatDecimal(a.balance, a.currency)}` : ` · ${a.currency}`}`,
+    label: `${a.accountNumber} — ${customerName(a)}${
+      withBalance ? ` · ${formatDecimal(a.balance, a.currency)}` : ` · ${a.currency}`
+    }`,
+    title: a.accountNumber,
+    subtitle: `${customerName(a)} · ${withBalance ? formatDecimal(a.balance, a.currency) : a.currency}`,
     searchText: `${a.accountNumber} ${customerName(a)}`,
   })
 
@@ -488,6 +506,7 @@ export default function OperationPage({ searchParams, setSearchParams }) {
     .map((a) => accountOption(a, false))
 
   const hasMore = meta.page < meta.totalPages
+  const searchPending = accountsStatus === 'loading' || search.trim() !== appliedSearch
 
   return (
     <>
@@ -510,58 +529,45 @@ export default function OperationPage({ searchParams, setSearchParams }) {
             </div>
           )}
 
-          <label className="field-label">Rechercher un compte par numéro</label>
-          <input
-            className="field-control"
-            placeholder="Numéro de compte (recherche sur le serveur)…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <small className="char-count">
-            {accountsStatus === 'loading'
-              ? 'Chargement…'
-              : `${accounts.length} compte${accounts.length > 1 ? 's' : ''} affiché${accounts.length > 1 ? 's' : ''} sur ${meta.total} compte${meta.total > 1 ? 's' : ''} actif${meta.total > 1 ? 's' : ''}`}
-          </small>
-          {hasMore && (
-            <div>
-              <Button
-                variant="outline"
-                disabled={loadingMore}
-                onClick={() => fetchAccounts(appliedSearch, meta.page + 1, true)}
-              >
-                {loadingMore ? 'Chargement…' : 'Charger plus de comptes'}
-              </Button>
-            </div>
-          )}
-          {searching && accountsStatus === 'ready' && accounts.length === 0 && (
-            <div className="inline-error">Aucun compte actif ne correspond à ce numéro.</div>
-          )}
-
-          <SearchableSelect
-            label={type === 'DEPOT' ? 'Compte à créditer' : type === 'RETRAIT' ? 'Compte à débiter' : 'Compte source'}
-            searchLabel="Rechercher parmi les comptes chargés"
+          <AccountCombobox
+            label={
+              type === 'DEPOT' ? 'Compte à créditer' : type === 'RETRAIT' ? 'Compte à débiter' : 'Compte source'
+            }
             value={account}
+            options={sourceOptions}
+            searching={searchPending}
+            total={meta.total}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={() => fetchAccounts(appliedSearch, meta.page + 1, true)}
+            onQueryChange={setSearch}
             onChange={(v) => {
               userPickedRef.current = true
               setNotice('')
               setAccount(v)
               setSubmitError('')
             }}
-            options={sourceOptions}
           />
+
           {type === 'VIREMENT' && (
-            <SearchableSelect
+            <AccountCombobox
               label="Compte destination"
-              searchLabel="Rechercher un compte destinataire parmi les comptes chargés"
               value={dest}
+              options={destinationOptions}
+              searching={searchPending}
+              total={meta.total}
+              hasMore={hasMore}
+              loadingMore={loadingMore}
+              onLoadMore={() => fetchAccounts(appliedSearch, meta.page + 1, true)}
+              onQueryChange={setSearch}
               onChange={(v) => {
                 setNotice('')
                 setDest(v)
                 setSubmitError('')
               }}
-              options={destinationOptions}
             />
           )}
+
           <label className="field-label">Montant</label>
           <div className="amount-input">
             <input
@@ -576,12 +582,20 @@ export default function OperationPage({ searchParams, setSearchParams }) {
             <span>{currencySymbol(active?.currency ?? 'DZD')}</span>
           </div>
           <div className="chips">
-            {QUICK_AMOUNTS.map((x) => (
-              <button key={x} onClick={() => setAmount(x)}>
-                {new Intl.NumberFormat('fr-DZ').format(Number(x))} DA
+            {quickAmounts.map((x) => (
+              <button
+                key={`${activeCurrency}-${x}`}
+                type="button"
+                onClick={() => {
+                  setAmount(x)
+                  setSubmitError('')
+                }}
+              >
+                {quickAmountFormatter.format(Number(x))} {currencySymbol(activeCurrency ?? 'DZD')}
               </button>
             ))}
           </div>
+
           <label className="field-label">
             Description <span className="optional">Facultatif</span>
           </label>
@@ -593,6 +607,7 @@ export default function OperationPage({ searchParams, setSearchParams }) {
             onChange={(e) => setDescription(e.target.value)}
           />
           <small className="char-count">{description.length}/150 caractères</small>
+
           {amountInvalid && (
             <div className="inline-error">
               Montant invalide : saisissez un nombre positif avec au plus deux décimales.
@@ -608,21 +623,19 @@ export default function OperationPage({ searchParams, setSearchParams }) {
             </div>
           )}
           {submitError && <div className="inline-error">{submitError}</div>}
-<Button
-  className="new-op submit-op"
-  disabled={!canSubmit}
-  onClick={submit}
->
-  {submitting ? (
-    'Envoi en cours…'
-  ) : (
-    <>
-      Valider {ACTION[type]}
-      <ArrowRight size={17} />
-    </>
-  )}
-</Button>
+
+          <Button className="new-op submit-op" disabled={!canSubmit} onClick={submit}>
+            {submitting ? (
+              'Envoi en cours…'
+            ) : (
+              <>
+                Valider {ACTION[type]}
+                <ArrowRight size={17} />
+              </>
+            )}
+          </Button>
         </section>
+
         <aside className="card summary-card">
           <h2>Récapitulatif</h2>
           <p>Vérifiez les détails avant validation.</p>
