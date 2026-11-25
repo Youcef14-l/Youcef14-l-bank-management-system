@@ -129,7 +129,7 @@ export default function App() {
   const preselectedClientId = UUID_RE.test(searchParams.get('client') ?? '') ? searchParams.get('client') : ''
 
   let content
-  if (path === '/direction') content = <DirectorPage />
+  if (path === '/direction') content = <DirectorPage user={session} />
   else if (path === '/admin') content = <AdminPage />
   else if (path === '/') content = <Dashboard navigate={navigate} />
   else if (path === '/clients') content = <ClientsPage query={query} setQuery={setQuery} navigate={navigate} can={can} />
