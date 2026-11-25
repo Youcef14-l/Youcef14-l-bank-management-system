@@ -13,12 +13,28 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch(path, { method = 'GET', body, auth = true } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+export async function apiFetch(
+  path,
+  {
+    method = 'GET',
+    body,
+    auth = true,
+    headers: customHeaders = {},
+  } = {}
+) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...customHeaders,
+  }
+
   const token = getToken()
-  if (auth && token) headers.Authorization = `Bearer ${token}`
+
+  if (auth && token) {
+    headers.Authorization = `Bearer ${token}`
+  }
 
   let res
+
   try {
     res = await fetch(`${API_URL}${path}`, {
       method,
@@ -30,9 +46,16 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
   }
 
   const json = await res.json().catch(() => null)
+
   if (!res.ok || json?.success === false) {
     const err = json?.error ?? {}
-    throw new ApiError(err.message ?? 'Erreur serveur', res.status, err.code)
+
+    throw new ApiError(
+      err.message ?? 'Erreur serveur',
+      res.status,
+      err.code
+    )
   }
+
   return json
 }

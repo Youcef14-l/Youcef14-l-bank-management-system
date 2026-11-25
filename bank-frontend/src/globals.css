@@ -54,4 +54,12 @@
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
 .spin { animation: admin-spin 0.8s linear infinite; }
-@keyframes admin-spin { to { transform: rotate(360deg); } }
+@keyframes admin-spin { to { transform: rotate(360deg); } } 
+
+.submit-op {
+  width: 100%;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px; /* top/bottom 12px, left/right 16px */
+  margin-top: 20px;
+}

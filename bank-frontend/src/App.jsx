@@ -18,6 +18,7 @@ import AccountDetail from './pages/AccountDetailPage.jsx'
 import NewRecord from './pages/NewRecordPage.jsx'
 import NotFound from './pages/NotFoundPage.jsx'
 
+
 const navigationByRole = {
   caissier: [['/operations/new', 'Nouvelle opération', Plus], ['/operations', 'Historique', ArrowLeftRight]],
   'charge-clientele': [['/clients', 'Clients', Users], ['/comptes', 'Comptes', Wallet]],
@@ -70,7 +71,6 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-
   const path = location.pathname
 
   // حالة الموظف الذي سجل الدخول
@@ -147,7 +147,7 @@ export default function App() {
   return <div className="app-shell">
     <aside className={`sidebar ${mobile ? 'mobile-open' : ''}`}>
       <div className="brand"><span className="brand-mark"><Landmark size={19} /></span><b>BankServices</b><button className="mobile-close" onClick={() => setMobile(false)} aria-label="Fermer le menu"><X /></button></div>
-      {session.roleId === 'caissier' && <button className="new-op" onClick={() => navigate('/operations/new')}><Plus size={17} /><span>Nouvelle opération</span></button>}
+
       <div className="nav-label">{session.role.label.toUpperCase()}</div>
       <nav>{roleNavigation.map(([href, label, Icon]) => <Link key={href} to={href} onClick={() => setMobile(false)} className={`nav-link ${path === href ? 'active' : ''}`}><Icon size={18} /><span>{label}</span>{href === '/operations' && <span className="nav-count">{operations.length}</span>}</Link>)}</nav>
       <div className="sidebar-bottom"><div className="help-box"><div className="help-icon"><FileText size={17} /></div><div><b>Mode démonstration</b><span>Accès selon votre rôle</span></div><ArrowRight size={15} /></div><div className="profile"><div className="avatar">{session.name.slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{session.name}</b><span>{session.role.label}</span></div><button className="icon-button" aria-label="Paramètres"><Settings size={18} /></button></div><button className="logout-button" onClick={handleLogout}><LogOut size={15} /> Déconnexion</button><button className="theme-toggle" onClick={() => setDark(!dark)}>{dark ? 'Mode clair' : 'Mode sombre'} <span>{dark ? '☼' : '◐'}</span></button></div>
