@@ -17,13 +17,18 @@ import ClientDetail from './pages/ClientDetailPage.jsx'
 import AccountDetail from './pages/AccountDetailPage.jsx'
 import NewRecord from './pages/NewRecordPage.jsx'
 import NotFound from './pages/NotFoundPage.jsx'
-
+import AuditLogsPage from './pages/AuditLogsPage.jsx'
+import { ShieldCheck } from 'lucide-react'
 
 const navigationByRole = {
   caissier: [['/operations/new', 'Nouvelle opération', Plus], ['/operations', 'Historique', ArrowLeftRight]],
   'charge-clientele': [['/clients', 'Clients', Users], ['/comptes', 'Comptes', Wallet]],
   directeur: [['/direction', 'Pilotage agence', Shield]],
-  auditeur: [['/operations', 'Historique', ArrowLeftRight], ['/statistiques', 'Statistiques', BarChart3]],
+  auditeur: [
+    ['/operations', 'Historique', ArrowLeftRight],
+    ['/statistiques', 'Statistiques', BarChart3],
+    ['/audit', 'Journal d’audit', ShieldCheck],
+  ],
   administrateur: [['/admin', 'Employés & rôles', Users]],
 }
 
@@ -54,7 +59,9 @@ const entityTitles = {
   'account-detail': 'Détail du compte',
 }
 
-const pageTitle = (path, entity) => {
+const pageTitle = (path, entity) => { 
+  if (path === '/statistiques') return 'Statistiques'
+  if (path === '/audit') return 'Journal d’audit'
   if (path === '/') return 'Tableau de bord'
   if (path === '/clients') return 'Clients'
   if (path === '/comptes') return 'Comptes bancaires'
@@ -135,13 +142,14 @@ export default function App() {
   else if (path === '/clients') content = <ClientsPage query={query} setQuery={setQuery} navigate={navigate} can={can} />
   else if (path === '/comptes') content = <AccountsPage query={query} setQuery={setQuery} filter={accountFilter} setFilter={setAccountFilter} navigate={navigate} can={can} />
   else if (path === '/operations/new') content = <OperationPage searchParams={searchParams} setSearchParams={setSearchParams} navigate={navigate} />
-  else if (path === '/operations') content = <OperationsPage data={sortedOperations} query={query} setQuery={setQuery} />
+ else if (path === '/operations') { content = (<OperationsPage data={sortedOperations} query={query} setQuery={setQuery} canCreate={session.roleId !== 'auditeur'}/>)}
   else if (path === '/statistiques') content = <StatsPage />
   else if (entity?.view === 'client-new') content = <NewRecord mode="client-new" title={title} navigate={navigate} can={can} />
   else if (entity?.view === 'client-edit') content = <NewRecord key={entity.id} mode="client-edit" title={title} clientId={entity.id} navigate={navigate} can={can} />
   else if (entity?.view === 'client-detail') content = <ClientDetail key={entity.id} id={entity.id} navigate={navigate} can={can} />
   else if (entity?.view === 'account-new') content = <NewRecord mode="account-new" title={title} preselectedClientId={preselectedClientId} navigate={navigate} can={can} />
   else if (entity?.view === 'account-detail') content = <AccountDetail key={entity.id} id={entity.id} navigate={navigate} />
+  else if (path === '/audit') content = <AuditLogsPage />
   else content = <NotFound navigate={navigate} />
 
   return <div className="app-shell">

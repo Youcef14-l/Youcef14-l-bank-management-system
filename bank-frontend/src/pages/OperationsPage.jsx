@@ -82,7 +82,7 @@ function exportCsv(rows, pageNumber) {
   setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
 
-export default function OperationsPage({ query, setQuery }) {
+export default function OperationsPage({ query, setQuery, canCreate = true }) {
   const [type, setType] = useState('Tous')
   const [status, setStatus] = useState('Tous')
   const [from, setFrom] = useState('')
@@ -177,9 +177,11 @@ export default function OperationsPage({ query, setQuery }) {
             >
               <Download /> Exporter la page (CSV)
             </Button>
-            <Link className="button" to="/operations/new">
-              <Plus /> Nouvelle opération
-            </Link>
+            {canCreate && (
+              <Link className="button" to="/operations/new">
+                <Plus /> Nouvelle opération
+              </Link>
+            )}
           </>
         }
       />

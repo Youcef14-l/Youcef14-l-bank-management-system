@@ -9,7 +9,9 @@ import employeeRoutes from "./modules/employees/employee.routes.js";
 import roleRoutes from "./modules/roles/role.routes.js";
 import permissionRoutes from "./modules/permissions/permission.routes.js"; 
 import customerRoutes from "./modules/customers/customer.routes.js"; 
-import transactionRoutes from "./modules/transactions/transaction.routes.js";
+import transactionRoutes from "./modules/transactions/transaction.routes.js"; 
+import auditRoutes from "./modules/audit/audit.routes.js";
+import statisticsRoutes from "./modules/statistics/statistics.routes.js";
 
 import accountRoutes, {
   customerAccountsRoutes
@@ -71,7 +73,10 @@ app.use(
 );
 
 app.use("/api/accounts", accountRoutes); 
-app.use("/api/transactions", transactionRoutes);
+app.use("/api/transactions", transactionRoutes); 
+
+app.use("/api/audit-logs", auditRoutes);
+app.use("/api/statistics", statisticsRoutes);
 
 // 6. Handle unknown routes
 app.use(notFoundHandler);

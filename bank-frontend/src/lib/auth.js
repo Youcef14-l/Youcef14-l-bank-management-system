@@ -162,7 +162,7 @@ const routeAccess = {
   caissier: ['/operations', '/operations/new'],
   'charge-clientele': ['/clients', '/comptes'],
   directeur: ['/direction'],
-  auditeur: ['/statistiques', '/operations'],
+ auditeur: ['/operations', '/statistiques', '/audit'],
   administrateur: ['/admin'],
 }
 
