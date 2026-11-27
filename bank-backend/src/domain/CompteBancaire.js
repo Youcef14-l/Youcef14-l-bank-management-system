@@ -40,7 +40,8 @@ export class CompteBancaire {
     this.#customerId = customerId;
     this.#balanceCents = toCents(balance);
     this.#status = status;
-    this.#closedAt = closedAt;
+    this.#closedAt = closedAt; 
+    Object.preventExtensions(this);
   }
 
   /* ---------- Read-only accessors (getters without setters) ---------- */
