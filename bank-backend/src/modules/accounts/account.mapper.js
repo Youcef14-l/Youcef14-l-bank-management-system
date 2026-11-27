@@ -26,7 +26,8 @@ export const mapAccountToDomain = (record) => {
     case "EPARGNE":
       return new CompteEpargne({
         ...common,
-        interestRate: record.interestRate ?? "0",
+        // Same normalisation as transaction.service.js (toDomainAccount): the domain receives a plain string.
+        interestRate: record.interestRate == null ? "0" : record.interestRate.toFixed(4),
         minimumBalance: record.minimumBalance ?? "0",
       });
     default:

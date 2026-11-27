@@ -24,6 +24,11 @@ export function listDirectorTransactions(params = {}) {
   return apiFetch(`/transactions${buildQuery(params, TRANSACTION_QUERY_KEYS)}`)
 }
 
+// GET /transactions/:id  — UUID. Response: { success, data: { transaction } }
+export function getDirectorTransaction(id) {
+  return apiFetch(`/transactions/${segment(id)}`)
+}
+
 // PATCH /transactions/:id/approve  — id is the UUID, body is empty by contract
 export function approveDirectorTransaction(id) {
   return apiFetch(`/transactions/${segment(id)}/approve`, { method: 'PATCH', body: {} })
@@ -54,4 +59,4 @@ export function blockDirectorAccount(id) {
 // POST /accounts/:id/unblock  — no body
 export function unblockDirectorAccount(id) {
   return apiFetch(`/accounts/${segment(id)}/unblock`, { method: 'POST' })
-}
+}

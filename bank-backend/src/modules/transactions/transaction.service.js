@@ -293,7 +293,8 @@ export async function approveTransaction(user, id, ctx = {}) {
           const [a, b] = [rows.get(row.sourceAccountId), rows.get(row.destinationAccountId)];
           if (a.currency !== b.currency) throw new DomainError("CURRENCY_MISMATCH", "Source and destination accounts must use the same currency");
         }
-        changes = await executeMovement(tx, domainTx, rows); // re-checks status + balance NOW
+        assertAccountsActive(rows); // accounts may have been BLOCKED / CLOSED since the transaction was created
+        changes = await executeMovement(tx, domainTx, rows); // re-checks balance rules NOW
       } catch (e) {
         if (!(e instanceof DomainError)) throw e;
         // The rule is no longer satisfied. No balance was written (domain checks run first).

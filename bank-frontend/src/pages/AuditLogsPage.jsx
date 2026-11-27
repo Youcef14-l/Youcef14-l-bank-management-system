@@ -187,40 +187,44 @@ export default function AuditLogsPage() {
               Réessayer
             </Button>
           </div>
-        ) : loading ? (
-          <p className="empty-state">Chargement du journal…</p>
         ) : items.length === 0 ? (
-          <p className="empty-state">Aucun événement d’audit trouvé.</p>
+          <p className="empty-state">
+            {loading
+              ? 'Chargement du journal…'
+              : 'Aucun événement d’audit trouvé.'}
+          </p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>DATE</th>
-                <th>EMPLOYÉ</th>
-                <th>ACTION</th>
-                <th>ENTITÉ</th>
-                <th>DESCRIPTION</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((log) => (
-                <FragmentRow
-                  key={log.id}
-                  log={log}
-                  open={openId === log.id}
-                  onToggle={() =>
-                    setOpenId(openId === log.id ? null : log.id)
-                  }
-                  onFilterEmployee={() => {
-                    if (!log.employee) return
-                    setEmployeeLabel(empName(log.employee))
-                    update({ employeeId: log.employee.id })
-                  }}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className={`table-scroll${loading ? ' is-loading' : ''}`}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>DATE</th>
+                  <th>EMPLOYÉ</th>
+                  <th>ACTION</th>
+                  <th>ENTITÉ</th>
+                  <th>DESCRIPTION</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((log) => (
+                  <FragmentRow
+                    key={log.id}
+                    log={log}
+                    open={openId === log.id}
+                    onToggle={() =>
+                      setOpenId(openId === log.id ? null : log.id)
+                    }
+                    onFilterEmployee={() => {
+                      if (!log.employee) return
+                      setEmployeeLabel(empName(log.employee))
+                      update({ employeeId: log.employee.id })
+                    }}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         <div className="table-footer">
@@ -256,7 +260,7 @@ function FragmentRow({ log, open, onToggle, onFilterEmployee }) {
   return (
     <>
       <tr>
-        <td>{fmtDate(log.createdAt)}</td>
+        <td className="audit-date">{fmtDate(log.createdAt)}</td>
         <td>
           {log.employee ? (
             <button
@@ -280,38 +284,11 @@ function FragmentRow({ log, open, onToggle, onFilterEmployee }) {
           {ENTITY_LABELS[log.entityType] ?? log.entityType}
           <div className="mono">{log.entityId}</div>
         </td>
-        <td>{log.description}</td>
-        <td>
-          <Button variant="outline" onClick={onToggle}>
-            {open ? 'Masquer' : 'Détails'}
-          </Button>
-        </td>
+        <td className="audit-desc">{log.description}</td>
+
       </tr>
 
-      {open && (
-        <tr className="audit-detail">
-          <td colSpan={6}>
-            <div className="audit-detail-grid">
-              <div>
-                <h4>Anciennes valeurs</h4>
-                <pre className="mono">
-                  {log.oldValues ? JSON.stringify(log.oldValues, null, 2) : '—'}
-                </pre>
-              </div>
-              <div>
-                <h4>Nouvelles valeurs</h4>
-                <pre className="mono">
-                  {log.newValues ? JSON.stringify(log.newValues, null, 2) : '—'}
-                </pre>
-              </div>
-              <div>
-                <h4>Adresse IP</h4>
-                <pre className="mono">{log.ipAddress ?? '—'}</pre>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
+
     </>
   )
 }

@@ -1,0 +1,145 @@
+/* Director popups (confirmation + details). Own prefix "dir-" so nothing in the existing CSS can clash.
+   Place this file next to DirectorPage.css (src/pages/utils/DirectorModal.css). */
+
+.dir-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  animation: dir-fade 0.15s ease-out;
+}
+
+.dir-popup {
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  animation: dir-pop 0.18s ease-out;
+}
+
+.dir-popup-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.dir-popup-head h2 { margin: 0; font-size: 18px; line-height: 1.25; }
+.dir-popup-head p { margin: 2px 0 0; font-size: 13px; color: #64748b; }
+
+.dir-popup-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+}
+.dir-popup-icon.approve { background: #e6f4ee; color: #0f7b53; }
+.dir-popup-icon.reject  { background: #fdecec; color: #c0392b; }
+.dir-popup-icon.info    { background: #e8f0fe; color: #2563eb; }
+
+.dir-popup-summary {
+  margin: 0 0 16px;
+  padding: 4px 14px;
+  border: 1px solid #e5e9f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.dir-popup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e5e9f0;
+  font-size: 14px;
+}
+.dir-popup-row:last-child { border-bottom: 0; }
+.dir-popup-row dt { margin: 0; color: #64748b; white-space: nowrap; }
+.dir-popup-row dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+.dir-popup-row .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+.dir-popup-amount { font-size: 17px; color: #0f7b53; }
+
+.dir-popup-note { margin: 0 0 16px; font-size: 13px; line-height: 1.5; color: #475569; }
+
+.dir-popup-field { position: relative; margin-bottom: 16px; }
+.dir-popup-field label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; }
+.dir-popup-field textarea {
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.dir-popup-field textarea:focus { outline: 2px solid #0f7b53; outline-offset: 1px; border-color: #0f7b53; }
+.dir-popup-counter { display: block; margin-top: 4px; text-align: right; font-size: 12px; color: #94a3b8; }
+
+.dir-popup-error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecec;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.dir-popup-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.dir-btn {
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, background 0.15s;
+}
+.dir-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.dir-btn.ghost { background: transparent; border-color: #cbd5e1; color: inherit; }
+.dir-btn.ghost:hover:not(:disabled) { background: #f1f5f9; }
+.dir-btn.approve { background: #0f7b53; color: #ffffff; }
+.dir-btn.reject  { background: #c0392b; color: #ffffff; }
+.dir-btn.approve:hover:not(:disabled),
+.dir-btn.reject:hover:not(:disabled) { filter: brightness(1.08); }
+.dir-btn:focus-visible { outline: 2px solid #0f7b53; outline-offset: 2px; }
+
+/* dark mode: App.jsx toggles the "dark" class on <html> */
+.dark .dir-popup { background: #16202b; color: #e6edf5; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6); }
+.dark .dir-popup-head p,
+.dark .dir-popup-row dt,
+.dark .dir-popup-note { color: #9fb0c3; }
+.dark .dir-popup-summary { background: #1b2733; border-color: #2a3a4a; }
+.dark .dir-popup-row { border-color: #2a3a4a; }
+.dark .dir-popup-amount { color: #4cc38a; }
+.dark .dir-popup-icon.approve { background: rgba(76, 195, 138, 0.16); color: #4cc38a; }
+.dark .dir-popup-icon.reject  { background: rgba(239, 98, 82, 0.16); color: #ef6252; }
+.dark .dir-popup-icon.info    { background: rgba(96, 165, 250, 0.16); color: #60a5fa; }
+.dark .dir-popup-field textarea { background: #1b2733; border-color: #2a3a4a; }
+.dark .dir-popup-error { background: rgba(239, 98, 82, 0.14); color: #ff9b8f; }
+.dark .dir-btn.ghost { border-color: #2a3a4a; }
+.dark .dir-btn.ghost:hover:not(:disabled) { background: #1b2733; }
+
+@media (max-width: 520px) {
+  .dir-popup { padding: 18px; border-radius: 14px; }
+  .dir-popup-actions { flex-direction: column-reverse; }
+  .dir-btn { width: 100%; }
+}
+
+@keyframes dir-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dir-pop  { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dir-popup-backdrop, .dir-popup { animation: none; }
+}

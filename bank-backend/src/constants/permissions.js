@@ -40,7 +40,8 @@ export const PERMISSION_DEFINITIONS = [
   { code: "EMPLOYEES_UPDATE", description: "Update employees" },
   { code: "EMPLOYEES_DEACTIVATE", description: "Deactivate employees" },
   { code: "ROLES_MANAGE", description: "Manage roles" },
-  { code: "PERMISSIONS_MANAGE", description: "Manage permissions" },
+  { code: "PERMISSIONS_MANAGE", description: "Manage permissions" }, 
+  { code: "BANK_SETTINGS_MANAGE", description: "Manage bank settings" },
 ];
 
 // { CUSTOMERS_VIEW: "CUSTOMERS_VIEW", ... } -> avoids typos: authorize(PERMISSIONS.CUSTOMERS_VIEW)
@@ -76,7 +77,7 @@ export const ROLE_PERMISSIONS = Object.freeze({
   [ROLES.ADMINISTRATEUR]: [
     P.DASHBOARD_VIEW,
     P.EMPLOYEES_VIEW, P.EMPLOYEES_CREATE, P.EMPLOYEES_UPDATE, P.EMPLOYEES_DEACTIVATE,
-    P.ROLES_MANAGE, P.PERMISSIONS_MANAGE,
+    P.ROLES_MANAGE, P.PERMISSIONS_MANAGE, P.BANK_SETTINGS_MANAGE,
   ],
 });
 
@@ -95,7 +96,7 @@ export const ROLE_PERMISSION_RULES = Object.freeze({
   // The admin manages people and access, never money; and must keep what lets him administrate.
   [ROLES.ADMINISTRATEUR]: {
     forbidden: FINANCIAL_PERMISSIONS,
-    required: [P.ROLES_MANAGE, P.PERMISSIONS_MANAGE, P.EMPLOYEES_VIEW],
+    required: [P.ROLES_MANAGE, P.PERMISSIONS_MANAGE, P.EMPLOYEES_VIEW, P.BANK_SETTINGS_MANAGE,],
   },
   // The controller is read-only: only *_VIEW permissions.
   [ROLES.CONTROLEUR]: { viewOnly: true },

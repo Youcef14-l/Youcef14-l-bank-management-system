@@ -85,4 +85,35 @@
 .audit-detail td { background: rgba(0,0,0,.02); }
 .audit-detail-grid { display: grid; grid-template-columns: 1fr 1fr 200px; gap: 16px; }
 .audit-detail-grid pre { margin: 0; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; font-size: 12px; }
-@media (max-width: 800px) { .audit-detail-grid { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .audit-detail-grid { grid-template-columns: 1fr; } } 
+.list-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+}
+
+.audit-date {
+  white-space: nowrap;
+}
+
+.audit-desc {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+.data-table td .mono {
+  overflow-wrap: anywhere;
+}
+
+.table-scroll.is-loading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}

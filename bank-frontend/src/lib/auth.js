@@ -95,7 +95,7 @@ const routeAccess = {
   'charge-clientele': ['/clients', '/comptes'],
   directeur: ['/direction'],
  auditeur: ['/operations', '/statistiques', '/audit'],
-  administrateur: ['/admin'],
+  administrateur: ['/admin', '/parametres'],
 }
 
 export function canAccessPath(roleId, path) {

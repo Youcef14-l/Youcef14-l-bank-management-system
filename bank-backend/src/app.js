@@ -12,6 +12,7 @@ import customerRoutes from "./modules/customers/customer.routes.js";
 import transactionRoutes from "./modules/transactions/transaction.routes.js"; 
 import auditRoutes from "./modules/audit/audit.routes.js";
 import statisticsRoutes from "./modules/statistics/statistics.routes.js";
+import bankRoutes from "./modules/banks/bank.routes.js";
 
 import accountRoutes, {
   customerAccountsRoutes
@@ -77,7 +78,7 @@ app.use("/api/transactions", transactionRoutes);
 
 app.use("/api/audit-logs", auditRoutes);
 app.use("/api/statistics", statisticsRoutes);
-
+app.use("/api/bank", bankRoutes);
 // 6. Handle unknown routes
 app.use(notFoundHandler);
 

@@ -66,7 +66,8 @@ async function main() {
     await prisma.permission.upsert({
       where: { code },
       update: { description, module: moduleOf(code) },
-      create: { code, description, module: moduleOf(code) },
+      create: { code, description, module: moduleOf(code) }, 
+      
     });
   }
 

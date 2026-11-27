@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, LockKeyhole, ShieldCheck, UnlockKeyhole, X } from 'lucide-react'
 import { PageHeader } from '../components/ui.jsx'
 import { ApiError } from '../lib/api.js'
+import { hasPermission } from '../lib/permissions.js'
 import {
   approveDirectorTransaction,
   blockDirectorAccount,
   getDirectorAccount,
+  getDirectorTransaction,
   listDirectorAccounts,
   listDirectorTransactions,
   rejectDirectorTransaction,
   unblockDirectorAccount,
 } from '../lib/directorApi.js'
 import './utils/DirectorPage.css'
+import './utils/DirectorModal.css'
 
 const PENDING_PAGE_SIZE = 10
 const ACCOUNTS_PAGE_SIZE = 6
@@ -26,6 +30,7 @@ const TX_STATUS_LABELS = {
   REJECTED: 'Refusée',
   FAILED: 'Échouée',
 }
+const ACCOUNT_TYPE_LABELS = { COURANT: 'Compte courant', EPARGNE: 'Compte épargne' }
 const ACCOUNT_STATUS = {
   ACTIF: { label: 'Actif', className: 'approved' },
   BLOQUE: { label: 'Bloqué', className: 'rejected' },
@@ -34,13 +39,17 @@ const ACCOUNT_STATUS = {
 
 /* ---------- helpers ---------- */
 
-function formatAmount(value, currency = 'DZD') {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return '—'
+// `value` is the decimal STRING sent by the backend ("1500.50"). It is handed to Intl as a string
+// (exact in modern browsers) and never used in arithmetic. One amount = one currency, never summed.
+function formatAmount(value, currency) {
+  if (value === null || value === undefined || !/^-?\d+(\.\d+)?$/.test(String(value))) return '—'
+  const text = String(value)
   try {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(number)
+    return currency
+      ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(text)
+      : new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2 }).format(text)
   } catch {
-    return `${number.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${currency}`
+    return `${Number(text).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${currency ?? ''}`.trim()
   }
 }
 
@@ -71,7 +80,23 @@ function todayRange() {
   return { from: start.toISOString(), to: end.toISOString() }
 }
 
+// Backend error codes (domain + service) -> precise French messages.
+const CODE_MESSAGES = {
+  SELF_APPROVAL_FORBIDDEN: 'Vous ne pouvez pas approuver une opération que vous avez initiée.',
+  INSUFFICIENT_FUNDS: 'Fonds insuffisants : l’opération a été marquée comme échouée.',
+  ACCOUNT_NOT_ACTIVE: 'Un des comptes n’est plus actif : l’opération a été marquée comme échouée.',
+  CURRENCY_MISMATCH: 'Les comptes source et destination n’ont pas la même devise.',
+  INVALID_TRANSACTION_STATE: 'Cette opération a déjà été traitée.',
+  ACCOUNT_CONCURRENT_MODIFICATION: 'Le compte a été modifié par une autre requête. Réessayez.',
+  ACCOUNT_ALREADY_BLOCKED: 'Ce compte est déjà bloqué.',
+  ACCOUNT_NOT_BLOCKED: 'Ce compte n’est pas bloqué.',
+  ACCOUNT_ALREADY_CLOSED: 'Ce compte est fermé.',
+  INVALID_ACCOUNT_STATUS_TRANSITION: 'Ce changement de statut n’est pas autorisé.',
+  REJECTION_REASON_REQUIRED: 'Le motif du refus est obligatoire.',
+}
+
 function describeError(error) {
+  if (error?.code && CODE_MESSAGES[error.code]) return CODE_MESSAGES[error.code]
   const status = error instanceof ApiError ? error.status : error?.status
   const detail = error?.message && error.message !== 'Erreur serveur' ? error.message : ''
   const withDetail = (base) => (detail ? `${base} (${detail})` : base)
@@ -104,8 +129,7 @@ function Pager({ page, totalPages, disabled, onChange }) {
 /* ---------- page ---------- */
 
 export default function DirectorPage({ user }) {
-  const permissions = user?.permissions ?? []
-  const can = (permission) => permissions.includes(permission)
+  const can = (permission) => hasPermission(user, permission)
   const canViewTransactions = can('TRANSACTIONS_VIEW')
   const canApprove = can('TRANSACTIONS_APPROVE')
   const canReject = can('TRANSACTIONS_REJECT')
@@ -130,10 +154,13 @@ export default function DirectorPage({ user }) {
   const [dialog, setDialog] = useState(null) // { mode: 'approve' | 'reject', item }
   const [reason, setReason] = useState('')
   const [dialogError, setDialogError] = useState('')
+  // read-only details: { kind: 'transaction' | 'account', data, loading, error }
+  const [details, setDetails] = useState(null)
 
   const inFlight = useRef(new Set())
   const pendingReq = useRef(0)
   const accountsReq = useRef(0)
+  const detailsReq = useRef(0)
 
   const isBusy = (key) => busyKeys.includes(key)
 
@@ -169,7 +196,10 @@ export default function DirectorPage({ user }) {
       }
       setPending({ items, page: meta.page ?? page, total: meta.total ?? items.length, totalPages })
     } catch (error) {
-      if (req === pendingReq.current) setPendingError(describeError(error))
+      if (req === pendingReq.current) {
+        setPendingError(describeError(error))
+        setPending((current) => ({ ...current, total: null })) // never show a stale/guessed count
+      }
     } finally {
       if (req === pendingReq.current) setPendingLoading(false)
     }
@@ -264,11 +294,14 @@ export default function DirectorPage({ user }) {
         else await rejectDirectorTransaction(item.id, trimmed)
       } catch (error) {
         const message = describeError(error)
-        if (error?.status === 404 || error?.status === 409) {
-          // The transaction changed on the server: close the dialog and resync.
+        const changedOnServer = error?.status === 404 || error?.status === 409 || (mode === 'approve' && error?.status === 422)
+        if (changedOnServer) {
+          // The transaction changed on the server (processed elsewhere, or FAILED at execution): resync everything.
           closeDialog()
           setFeedback({ type: 'error', message })
           loadPending(pending.page)
+          loadTodayCount()
+          loadAccounts(accounts.page)
         } else {
           setDialogError(message)
         }
@@ -333,6 +366,72 @@ export default function DirectorPage({ user }) {
     })
   }
 
+  /* ----- read-only details (fresh copy from the API, list data shown meanwhile) ----- */
+
+  const openDetails = async (kind, item) => {
+    const req = ++detailsReq.current
+    setDetails({ kind, data: item, loading: true, error: '' })
+    try {
+      const res = kind === 'transaction' ? await getDirectorTransaction(item.id) : await getDirectorAccount(item.id)
+      if (req !== detailsReq.current) return
+      const fresh = kind === 'transaction' ? res?.data?.transaction : res?.data
+      setDetails({ kind, data: fresh?.id ? fresh : item, loading: false, error: '' })
+    } catch (error) {
+      if (req === detailsReq.current) setDetails({ kind, data: item, loading: false, error: describeError(error) })
+    }
+  }
+
+  const closeDetails = () => { detailsReq.current += 1; setDetails(null) }
+
+  useEffect(() => {
+    if (!details) return undefined
+    const onKey = (event) => { if (event.key === 'Escape') closeDetails() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [details])
+
+  const detailRows = () => {
+    if (!details) return []
+    const d = details.data
+    if (details.kind === 'transaction') {
+      return [
+        ['Référence', d.reference],
+        ['Type', TYPE_LABELS[d.transactionType] ?? d.transactionType],
+        ['Statut', TX_STATUS_LABELS[d.status] ?? d.status],
+        ['Montant', formatAmount(d.amount, d.currency)],
+        ['Frais', formatAmount(d.fee, d.currency)],
+        ['Compte(s)', accountsLabel(d)],
+        ['Initiée par', personName(d.initiatedBy) ?? '—'],
+        ['Créée le', formatDate(d.createdAt)],
+        ...(d.approvedBy ? [['Approuvée par', personName(d.approvedBy) ?? '—'], ['Approuvée le', formatDate(d.approvedAt)]] : []),
+        ...(d.rejectionReason ? [['Motif du refus', d.rejectionReason]] : []),
+        ...(d.completedAt ? [['Terminée le', formatDate(d.completedAt)]] : []),
+        ...(d.description ? [['Description', d.description]] : []),
+      ]
+    }
+    return [
+      ['Numéro de compte', d.accountNumber],
+      ['Type', ACCOUNT_TYPE_LABELS[d.accountType] ?? d.accountType],
+      ['Client', personName(d.customer) ?? '—'],
+      ['Solde', formatAmount(d.balance, d.currency)],
+      ['Statut', (ACCOUNT_STATUS[d.status] ?? { label: d.status }).label],
+      ...(d.accountType === 'COURANT' ? [['Découvert autorisé', formatAmount(d.overdraftLimit, d.currency)]] : []),
+      ...(d.accountType === 'EPARGNE'
+        ? [['Taux d’intérêt', d.interestRate != null ? `${d.interestRate} %` : '—'], ['Solde minimum', formatAmount(d.minimumBalance, d.currency)]]
+        : []),
+      ['Ouvert le', formatDate(d.createdAt)],
+      ...(d.closedAt ? [['Fermé le', formatDate(d.closedAt)]] : []),
+    ]
+  }
+
+  // Lock the page scroll while a popup is open.
+  useEffect(() => {
+    if (!dialog && !details) return undefined
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previous }
+  }, [dialog, details])
+
   /* ----- render ----- */
 
   const kpiValue = (value) => (value === null || value === undefined ? '—' : value)
@@ -356,12 +455,20 @@ export default function DirectorPage({ user }) {
       <article className="kpi">
         <div className="kpi-top">Opérations aujourd’hui <span className="kpi-icon blue"><ShieldCheck size={17} /></span></div>
         <strong>{kpiValue(todayCount)}</strong>
-        <small>{todayCount === null ? 'Donnée indisponible' : 'Activité de l’agence'}</small>
+        <small>
+          {todayCount === null
+            ? <>Donnée indisponible {canViewTransactions && <button type="button" className="text-action" onClick={loadTodayCount}>Réessayer</button>}</>
+            : 'Activité de l’agence'}
+        </small>
       </article>
       <article className="kpi">
         <div className="kpi-top">Comptes bloqués <span className="kpi-icon mint"><LockKeyhole size={17} /></span></div>
         <strong>{kpiValue(blockedCount)}</strong>
-        <small>Contrôle temporaire</small>
+        <small>
+          {blockedCount === null && canViewAccounts
+            ? <>Donnée indisponible <button type="button" className="text-action" onClick={loadBlockedCount}>Réessayer</button></>
+            : 'Contrôle temporaire'}
+        </small>
       </article>
     </section>
 
@@ -404,10 +511,13 @@ export default function DirectorPage({ user }) {
             {canViewTransactions && pending.items.map((item) => {
               const busy = isBusy(`tx:${item.id}`)
               const initiator = personName(item.initiatedBy)
+              const isOwn = Boolean(item.initiatedBy?.id) && item.initiatedBy.id === user?.id
               return (
                 <tr key={item.id}>
                   <td>
-                    <b>{item.reference}</b>
+                    <button type="button" className="text-action" onClick={() => openDetails('transaction', item)}>
+                      <b>{item.reference}</b>
+                    </button>
                     <small>{accountsLabel(item)}</small>
                     {initiator && <small>Initiée par {initiator}</small>}
                   </td>
@@ -423,7 +533,9 @@ export default function DirectorPage({ user }) {
                         ? <div className="row-actions">
                             {canApprove && (
                               <button className="role-icon-button approve" aria-label={`Approuver ${item.reference}`}
-                                disabled={busy} onClick={() => openDialog('approve', item)}>
+                                disabled={busy || isOwn}
+                                title={isOwn ? 'Vous ne pouvez pas approuver une opération que vous avez initiée' : undefined}
+                                onClick={() => openDialog('approve', item)}>
                                 <Check size={15} />
                               </button>
                             )}
@@ -488,7 +600,10 @@ export default function DirectorPage({ user }) {
               const canAct = account.status === 'ACTIF' ? canBlock : account.status === 'BLOQUE' ? canUnblock : false
               return (
                 <tr key={account.id}>
-                  <td className="mono">{account.accountNumber}</td>
+                  <td>
+                    <button type="button" className="text-action mono" onClick={() => openDetails('account', account)}>{account.accountNumber}</button>
+                    <small>{ACCOUNT_TYPE_LABELS[account.accountType] ?? account.accountType}</small>
+                  </td>
                   <td>{personName(account.customer) ?? '—'}</td>
                   <td className="amount-cell">{formatAmount(account.balance, account.currency)}</td>
                   <td><span className={`decision ${status.className}`}>{status.label}</span></td>
@@ -514,50 +629,86 @@ export default function DirectorPage({ user }) {
       <Pager page={accounts.page} totalPages={accounts.totalPages} disabled={accountsLoading} onChange={loadAccounts} />
     </section>
 
-    {dialog && (
+    {details && createPortal(
+      <div className="dir-popup-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDetails() }}>
+        <div className="dir-popup" role="dialog" aria-modal="true" aria-labelledby="dir-details-title">
+          <div className="dir-popup-head">
+            <span className="dir-popup-icon info"><ShieldCheck size={20} /></span>
+            <div>
+              <h2 id="dir-details-title">{details.kind === 'transaction' ? 'Détail de l’opération' : 'Détail du compte'}</h2>
+              <p>{details.loading ? 'Actualisation…' : 'Informations en lecture seule'}</p>
+            </div>
+          </div>
+          <dl className="dir-popup-summary">
+            {detailRows().map(([label, value]) => (
+              <div className="dir-popup-row" key={label}><dt>{label}</dt><dd>{value}</dd></div>
+            ))}
+          </dl>
+          {details.error && <p className="dir-popup-error" role="alert">{details.error} Les informations affichées proviennent de la liste.</p>}
+          <div className="dir-popup-actions">
+            <button type="button" className="dir-btn ghost" autoFocus onClick={closeDetails}>Fermer</button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+
+    {dialog && createPortal(
       <div
-        className="director-modal-backdrop"
+        className="dir-popup-backdrop"
         onMouseDown={(event) => { if (event.target === event.currentTarget && !dialogBusy) closeDialog() }}
       >
-        <div className="director-modal" role="dialog" aria-modal="true" aria-labelledby="director-dialog-title">
-          <h2 id="director-dialog-title">{approving ? 'Approuver l’opération' : 'Refuser l’opération'}</h2>
-          <p>
-            <b>{dialog.item.reference}</b> · {TYPE_LABELS[dialog.item.transactionType] ?? dialog.item.transactionType} · {formatAmount(dialog.item.amount, dialog.item.currency)}
-            <br />
-            {accountsLabel(dialog.item)}
-          </p>
+        <div className="dir-popup" role="dialog" aria-modal="true" aria-labelledby="dir-dialog-title">
+          <div className="dir-popup-head">
+            <span className={`dir-popup-icon ${approving ? 'approve' : 'reject'}`}>
+              {approving ? <Check size={20} /> : <X size={20} />}
+            </span>
+            <div>
+              <h2 id="dir-dialog-title">{approving ? 'Confirmer l’approbation' : 'Refuser l’opération'}</h2>
+              <p>{approving ? 'Cette action est définitive.' : 'Un motif est obligatoire.'}</p>
+            </div>
+          </div>
+
+          <dl className="dir-popup-summary">
+            <div className="dir-popup-row"><dt>Référence</dt><dd className="mono">{dialog.item.reference}</dd></div>
+            <div className="dir-popup-row"><dt>Type</dt><dd>{TYPE_LABELS[dialog.item.transactionType] ?? dialog.item.transactionType}</dd></div>
+            <div className="dir-popup-row"><dt>Montant</dt><dd className="dir-popup-amount">{formatAmount(dialog.item.amount, dialog.item.currency)}</dd></div>
+            <div className="dir-popup-row"><dt>Compte(s)</dt><dd className="mono">{accountsLabel(dialog.item)}</dd></div>
+            {personName(dialog.item.initiatedBy) && (
+              <div className="dir-popup-row"><dt>Initiée par</dt><dd>{personName(dialog.item.initiatedBy)}</dd></div>
+            )}
+            <div className="dir-popup-row"><dt>Date</dt><dd>{formatDate(dialog.item.createdAt)}</dd></div>
+          </dl>
 
           {approving
-            ? <p>L’opération sera exécutée par le serveur après vérification des conditions du compte et des fonds disponibles.</p>
-            : <>
-                <label htmlFor="director-reject-reason">Motif du refus</label>
+            ? <p className="dir-popup-note">L’opération sera exécutée par le serveur après vérification de l’état des comptes et des fonds disponibles.</p>
+            : <div className="dir-popup-field">
+                <label htmlFor="dir-reject-reason">Motif du refus</label>
                 <textarea
-                  id="director-reject-reason"
+                  id="dir-reject-reason"
+                  rows={3}
                   value={reason}
                   maxLength={REASON_MAX}
                   autoFocus
                   disabled={dialogBusy}
+                  placeholder="Expliquez la raison du refus…"
                   onChange={(event) => setReason(event.target.value)}
                 />
-                <div className="director-modal-counter">{reason.length} / {REASON_MAX}</div>
-              </>
+                <span className="dir-popup-counter">{reason.length} / {REASON_MAX}</span>
+              </div>
           }
 
-          {dialogError && <p className="form-error" role="alert">{dialogError}</p>}
+          {dialogError && <p className="dir-popup-error" role="alert">{dialogError}</p>}
 
-          <div className="director-modal-actions">
-            <button type="button" className="text-action" disabled={dialogBusy} onClick={closeDialog}>Annuler</button>
-            <button
-              type="button"
-              className={`director-modal-confirm ${approving ? 'approve' : 'reject'}`}
-              disabled={dialogBusy}
-              onClick={submitDialog}
-            >
+          <div className="dir-popup-actions">
+            <button type="button" className="dir-btn ghost" autoFocus={approving} disabled={dialogBusy} onClick={closeDialog}>Annuler</button>
+            <button type="button" className={`dir-btn ${approving ? 'approve' : 'reject'}`} disabled={dialogBusy} onClick={submitDialog}>
               {dialogBusy ? 'Traitement…' : approving ? 'Confirmer l’approbation' : 'Confirmer le refus'}
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
   </>
 }

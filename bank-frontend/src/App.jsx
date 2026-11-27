@@ -16,7 +16,9 @@ import ClientDetail from './pages/ClientDetailPage.jsx'
 import AccountDetail from './pages/AccountDetailPage.jsx'
 import NewRecord from './pages/NewRecordPage.jsx'
 import NotFound from './pages/NotFoundPage.jsx'
-import AuditLogsPage from './pages/AuditLogsPage.jsx'
+import AuditLogsPage from './pages/AuditLogsPage.jsx' 
+import BankSettingsPage from './pages/BankSettingsPage.jsx'
+import { getBankSummary } from './lib/bankApi.js'
 
 const navigationByRole = {
   caissier: [['/operations/new', 'Nouvelle opération', Plus], ['/operations', 'Historique', ArrowLeftRight]],
@@ -67,7 +69,8 @@ const pageTitle = (path, entity) => {
   if (path === '/operations/new') return 'Nouvelle opération'
   if (path === '/statistiques') return 'Statistiques'
   if (path === '/direction') return 'Pilotage de l’agence'
-  if (path === '/admin') return 'Gestion des employés'
+  if (path === '/admin') return 'Gestion des employés' 
+  if (path === '/parametres') return 'Paramètres de la banque'
   if (entity) return entityTitles[entity.view]
   return 'Page introuvable'
 }
@@ -79,10 +82,31 @@ export default function App() {
   const path = location.pathname
 
   // حالة الموظف الذي سجل الدخول
-  const [session, setSession] = useState(null)
+  const [session, setSession] = useState(null) 
+  const [bankInfo, setBankInfo] = useState(null)
 
   // منع عرض صفحة Login قبل التحقق من الجلسة
-  const [booting, setBooting] = useState(true)
+  const [booting, setBooting] = useState(true) 
+  useEffect(() => {
+  if (!session) {
+    setBankInfo(null)
+    return
+  }
+
+  let active = true
+
+  getBankSummary()
+    .then((bank) => {
+      if (active) setBankInfo(bank)
+    })
+    .catch((error) => {
+      console.error('Failed to load bank information:', error)
+    })
+
+  return () => {
+    active = false
+  }
+}, [session])
 
   // استعادة الجلسة عند فتح التطبيق أو تحديث الصفحة
   useEffect(() => {
@@ -134,7 +158,8 @@ export default function App() {
 
   let content
   if (path === '/direction') content = <DirectorPage user={session} />
-  else if (path === '/admin') content = <AdminPage />
+  else if (path === '/admin') content = <AdminPage /> 
+  else if (path === '/parametres') {content = (<BankSettingsPage onBankUpdated={(updatedBank) => {setBankInfo((current) => ({...current, ...updatedBank,}))}}/>)}
   else if (path === '/clients') content = <ClientsPage query={query} setQuery={setQuery} navigate={navigate} can={can} />
   else if (path === '/comptes') content = <AccountsPage query={query} setQuery={setQuery} filter={accountFilter} setFilter={setAccountFilter} navigate={navigate} can={can} />
   else if (path === '/operations/new') content = <OperationPage searchParams={searchParams} setSearchParams={setSearchParams} navigate={navigate} />
@@ -150,12 +175,21 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${mobile ? 'mobile-open' : ''}`}>
-      <div className="brand"><span className="brand-mark"><Landmark size={19} /></span><b>BankServices</b><button className="mobile-close" onClick={() => setMobile(false)} aria-label="Fermer le menu"><X /></button></div>
+      <div className="brand"><span className="brand-mark"><Landmark size={19} /></span><b>{bankInfo?.name || 'BankServices'}</b><button className="mobile-close" onClick={() => setMobile(false)} aria-label="Fermer le menu"><X /></button></div>
 
       <div className="nav-label">{session.role.label.toUpperCase()}</div>
       <nav>{roleNavigation.map(([href, label, Icon]) => <Link key={href} to={href} onClick={() => setMobile(false)} className={`nav-link ${path === href ? 'active' : ''}`}><Icon size={18} /><span>{label}</span></Link>)}</nav>
-      <div className="sidebar-bottom">{/*<div className="help-box"><div className="help-icon"><FileText size={17} /></div>{/*<div><b>Mode démonstration</b><span>Accès selon votre rôle</span></div><ArrowRight size={15} /></div>*/}<div className="profile"><div className="avatar">{session.name.slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{session.name}</b><span>{session.role.label}</span></div><button className="icon-button" aria-label="Paramètres"><Settings size={18} /></button></div><button className="logout-button" onClick={handleLogout}><LogOut size={15} /> Déconnexion</button><button className="theme-toggle" onClick={() => setDark(!dark)}>{dark ? 'Mode clair' : 'Mode sombre'} <span>{dark ? '☼' : '◐'}</span></button></div>
+      <div className="sidebar-bottom">{/*<div className="help-box"><div className="help-icon"><FileText size={17} /></div>{/*<div><b>Mode démonstration</b><span>Accès selon votre rôle</span></div><ArrowRight size={15} /></div>*/}<div className="profile"><div className="avatar">{session.name.slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{session.name}</b><span>{session.role.label}</span></div>{can('BANK_SETTINGS_MANAGE') && (
+  <button
+    className="icon-button"
+    aria-label="Paramètres"
+    title="Paramètres de la banque"
+    onClick={() => navigate('/parametres')}
+  >
+    <Settings size={18} />
+  </button>
+)}</div><button className="logout-button" onClick={handleLogout}><LogOut size={15} /> Déconnexion</button><button className="theme-toggle" onClick={() => setDark(!dark)}>{dark ? 'Mode clair' : 'Mode sombre'} <span>{dark ? '☼' : '◐'}</span></button></div>
     </aside>
-    <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={() => setMobile(true)} aria-label="Ouvrir le menu"><Menu /></button><div className="crumb"><span>Agence Alger Centre</span><ChevronRight size={14} /><strong>{title}</strong></div><div className="top-actions">{session.roleId !== 'administrateur' && <label className="global-search"><Search size={16} /><input aria-label="Rechercher" placeholder="Rechercher…" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>⌘ K</kbd></label>}<button className="icon-button notification" aria-label="Notifications"><Bell size={19} /><i /></button><div className="top-avatar">{session.name.slice(0, 2).toUpperCase()}</div></div></header><div className="content">{content}</div></main>
+    <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={() => setMobile(true)} aria-label="Ouvrir le menu"><Menu /></button><div className="crumb"><span>{bankInfo?.name || 'BankServices'}</span><ChevronRight size={14} /><strong>{title}</strong></div><div className="top-actions">{session.roleId !== 'administrateur' && <label className="global-search"><Search size={16} /><input aria-label="Rechercher" placeholder="Rechercher…" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>⌘ K</kbd></label>}<button className="icon-button notification" aria-label="Notifications"><Bell size={19} /><i /></button><div className="top-avatar">{session.name.slice(0, 2).toUpperCase()}</div></div></header><div className="content">{content}</div></main>
   </div>
 }
