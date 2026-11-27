@@ -26,6 +26,8 @@ import {
   getStatistics,
   formatAmount,
   formatCompact,
+  currencySymbol,
+  CURRENCIES,
   TYPE_LABELS
 } from '../lib/statisticsApi.js'
 import { describeError } from '../lib/errorMessages.js'
@@ -79,6 +81,7 @@ const shortDate = (iso) => {
 }
 
 export default function StatsPage() {
+  const [currency, setCurrency] = useState(CURRENCIES[0])
   const [rangeKey, setRangeKey] = useState('30d')
   const [applied, setApplied] = useState({ from: '', to: '' })
   const [draft, setDraft] = useState({ from: '', to: '' })
@@ -190,11 +193,31 @@ export default function StatsPage() {
     </div>
   )
 
+  // One tab per currency: amounts in different currencies are never mixed.
+  const currencySelector = (
+    <div style={{ display: 'flex', gap: 8 }}>
+      {CURRENCIES.map((c) => (
+        <Button
+          key={c}
+          variant={currency === c ? undefined : 'outline'}
+          onClick={() => setCurrency(c)}
+        >
+          {c}
+        </Button>
+      ))}
+    </div>
+  )
+
   const header = (
     <PageHeader
       title="Statistiques"
       description="Suivez l’activité et les flux de votre agence."
-      action={rangeSelector}
+      action={
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {currencySelector}
+          {rangeSelector}
+        </div>
+      }
     />
   )
 
@@ -225,7 +248,9 @@ export default function StatsPage() {
 
   if (!stats) return <>{header}</>
 
-  const { kpis, byType, netFlow } = stats
+  const { kpis, byType, netFlow } = stats.byCurrency[currency]
+  const symbol = currencySymbol(currency)
+  const money = (v) => formatAmount(v, currency)
   const volume = Number(kpis.totalVolume)
   const pie = byType.map((d) => ({
     name: TYPE_LABELS[d.type],
@@ -250,24 +275,24 @@ export default function StatsPage() {
         <Kpi
           icon={ArrowDownLeft}
           label="Total dépôts"
-          value={formatAmount(kpis.totalDeposits)}
+          value={money(kpis.totalDeposits)}
         />
         <Kpi
           icon={ArrowUpRight}
           label="Total retraits"
-          value={formatAmount(kpis.totalWithdrawals)}
+          value={money(kpis.totalWithdrawals)}
           tone="blue"
         />
         <Kpi
           icon={ArrowLeftRight}
           label="Total virements"
-          value={formatAmount(kpis.totalTransfers)}
+          value={money(kpis.totalTransfers)}
           tone="amber"
         />
         <Kpi
           icon={Landmark}
           label="Frais perçus"
-          value={formatAmount(kpis.totalFees)}
+          value={money(kpis.totalFees)}
           tone="mint"
         />
       </div>
@@ -282,7 +307,7 @@ export default function StatsPage() {
 
             <Badge type="actif">
               {net >= 0 ? '+ ' : '- '}
-              {formatCompact(Math.abs(net))} DA
+              {formatCompact(Math.abs(net))} {symbol}
             </Badge>
           </div>
 
@@ -309,7 +334,7 @@ export default function StatsPage() {
                 />
                 <Tooltip
                   formatter={(v, _n, item) => [
-                    formatAmount(item?.payload?.raw ?? v),
+                    money(item?.payload?.raw ?? v),
                     'Flux net'
                   ]}
                 />
@@ -347,13 +372,13 @@ export default function StatsPage() {
                     <Cell key={d.name} fill={COLORS[i]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v, _n, item) => formatAmount(item?.payload?.raw ?? v)} />
+                <Tooltip formatter={(v, _n, item) => money(item?.payload?.raw ?? v)} />
               </PieChart>
             </ResponsiveContainer>
 
             <div className="donut-label">
               <b>{formatCompact(kpis.totalVolume)}</b>
-              <span>DA traités</span>
+              <span>{symbol} traités</span>
             </div>
           </div>
 
@@ -379,7 +404,7 @@ export default function StatsPage() {
 
         {kpis.totalTransactions === 0 && (
           <p className="empty-state">
-            Aucune opération réalisée sur la période sélectionnée.
+            Aucune opération en {currency} sur la période sélectionnée.
           </p>
         )}
 
@@ -399,9 +424,9 @@ export default function StatsPage() {
               <tr key={d.type}>
                 <td><b>{TYPE_LABELS[d.type]}</b></td>
                 <td>{d.count}</td>
-                <td>{formatAmount(d.total)}</td>
-                <td>{formatAmount(d.average)}</td>
-                <td>{formatAmount(d.maximum)}</td>
+                <td>{money(d.total)}</td>
+                <td>{money(d.average)}</td>
+                <td>{money(d.maximum)}</td>
               </tr>
             ))}
           </tbody>
