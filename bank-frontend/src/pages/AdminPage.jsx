@@ -501,9 +501,7 @@ export default function AdminPage() {
       )}
     </section>
 
-    <aside className="admin-safety-note">
-      L’administrateur peut gérer les employés, mais ne reçoit aucun accès aux pages de transactions.
-    </aside>
+
 
     {resetTarget && (
       <ResetPasswordModal

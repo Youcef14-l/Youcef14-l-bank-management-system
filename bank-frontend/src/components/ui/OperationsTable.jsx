@@ -1,5 +1,4 @@
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight } from 'lucide-react'
-import { formatDate, formatMontant } from '../../lib/mock.js'
 import Badge from './Badge.jsx'
 
 export default function OperationsTable({ data, compact = false }) {

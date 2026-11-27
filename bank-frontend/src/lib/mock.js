@@ -1,5 +1,0 @@
-export { clients } from './data/clients.js'
-export { accounts } from './data/accounts.js'
-export { operations } from './data/operations.js'
-export { formatMontant, formatDate } from './format.js'
-export { clientFor, balanceTotal, frais, effectuer } from './domain/operations.js'
